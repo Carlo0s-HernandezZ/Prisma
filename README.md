@@ -1,50 +1,34 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
+Este es un proyecto Kotlin Multiplatform dirigido a Android, iOS, Web y Server.
+• /app/iosApp contiene una aplicación iOS. Incluso si estás compartiendo tu interfaz de usuario con Compose Multiplatform, necesitas este punto de entrada para tu aplicación iOS. Aquí también es donde deberías añadir código SwiftUI para tu proyecto.
 
-* [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+• /app/shared es para el código que se compartirá entre tus aplicaciones Compose Multiplatform. Contiene varias subcarpetas:
+	• commonMain es para el código que es común para todos los targets.
+  
+	• Otras carpetas son para código Kotlin que se compilará solo para la plataforma indicada en el nombre de la carpeta. Por ejemplo, si deseas usar el CoreCrypto de Apple para la parte de iOS de tu aplicación Kotlin, la carpeta iosMain sería el lugar adecuado para esas llamadas. Del mismo modo, si deseas editar la parte específica de Desktop (JVM), la carpeta jvmMain es la ubicación apropiada.
+• /core es para el código que se compartirá entre todos los targets del proyecto. La subcarpeta más importante es commonMain. Si lo prefieres, también puedes añadir código a las carpetas específicas de cada plataforma aquí.
 
-* [/app/shared](./app/shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./app/shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./app/shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./app/shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+• /server es para la aplicación de servidor Ktor.
 
-* [/core](./core/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./core/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+Running the apps (Ejecución de las aplicaciones)
 
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
+Usa las configuraciones de ejecución proporcionadas por el widget de ejecución en la barra de herramientas de tu IDE. También puedes usar estos comandos y opciones:
+• Aplicación Android: ./gradlew :app:androidApp:assembleDebug
+• Servidor: ./gradlew :server:run
 
-### Running the apps
+• Aplicación Web:
+	• Target Wasm (más rápido, navegadores modernos): ./gradlew :app:webApp:wasmJsBrowserDevelopmentRun
+	• Target JS (más lento, soporta navegadores más antiguos): ./gradlew :app:webApp:jsBrowserDevelopmentRun
+• Aplicación iOS: abre el directorio /app/iosApp en Xcode y ejecútalo desde allí.
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+Running tests (Ejecución de pruebas)
 
-- Android app: `./gradlew :app:androidApp:assembleDebug`
-- Server: `./gradlew :server:run`
-- Web app:
-  - Wasm target (faster, modern browsers): `./gradlew :app:webApp:wasmJsBrowserDevelopmentRun`
-  - JS target (slower, supports older browsers): `./gradlew :app:webApp:jsBrowserDevelopmentRun`
-- iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
+Usa el botón de ejecución en el margen del editor de tu IDE, o ejecuta las pruebas usando tareas de Gradle:
+• Pruebas de Android: ./gradlew :app:shared:testAndroidHostTest
+• Pruebas de servidor: ./gradlew :server:test
+• Pruebas web:
+	• Target Wasm: ./gradlew :app:shared:wasmJsTest
+	• Target JS: ./gradlew :app:shared:jsTest
+• Pruebas de iOS: ./gradlew :app:shared:iosSimulatorArm64Test
 
-### Running tests
-
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
-
-- Android tests: `./gradlew :app:shared:testAndroidHostTest`
-- Server tests: `./gradlew :server:test`
-- Web tests:
-  - Wasm target: `./gradlew :app:shared:wasmJsTest`
-  - JS target: `./gradlew :app:shared:jsTest`
-- iOS tests: `./gradlew :app:shared:iosSimulatorArm64Test`
-
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://kotlinlang.org/compose-multiplatform/),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
-
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+Aprende más sobre Kotlin Multiplatform, Compose Multiplatform, Kotlin/Wasm…
+Agradeceríamos tus comentarios sobre Compose/Web y Kotlin/Wasm en el canal público de Slack #compose-web. Si encuentras algún problema, por favor repórtalo en YouTrack.
