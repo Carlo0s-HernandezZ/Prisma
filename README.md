@@ -1,4 +1,5 @@
 Este es un proyecto Kotlin Multiplatform dirigido a Android, iOS, Web y Server.
+
 • /app/iosApp contiene una aplicación iOS. Incluso si estás compartiendo tu interfaz de usuario con Compose Multiplatform, necesitas este punto de entrada para tu aplicación iOS. Aquí también es donde deberías añadir código SwiftUI para tu proyecto.
 
 • /app/shared es para el código que se compartirá entre tus aplicaciones Compose Multiplatform. Contiene varias subcarpetas:
@@ -17,18 +18,24 @@ Usa las configuraciones de ejecución proporcionadas por el widget de ejecución
 
 • Aplicación Web:
 	• Target Wasm (más rápido, navegadores modernos): ./gradlew :app:webApp:wasmJsBrowserDevelopmentRun
+	
 	• Target JS (más lento, soporta navegadores más antiguos): ./gradlew :app:webApp:jsBrowserDevelopmentRun
 • Aplicación iOS: abre el directorio /app/iosApp en Xcode y ejecútalo desde allí.
 
 Running tests (Ejecución de pruebas)
 
 Usa el botón de ejecución en el margen del editor de tu IDE, o ejecuta las pruebas usando tareas de Gradle:
+
 • Pruebas de Android: ./gradlew :app:shared:testAndroidHostTest
+
 • Pruebas de servidor: ./gradlew :server:test
-• Pruebas web:
+
+Pruebas web:
 	• Target Wasm: ./gradlew :app:shared:wasmJsTest
+	
 	• Target JS: ./gradlew :app:shared:jsTest
-• Pruebas de iOS: ./gradlew :app:shared:iosSimulatorArm64Test
+Pruebas de iOS: 
+./gradlew :app:shared:iosSimulatorArm64Test
 
 Aprende más sobre Kotlin Multiplatform, Compose Multiplatform, Kotlin/Wasm…
 Agradeceríamos tus comentarios sobre Compose/Web y Kotlin/Wasm en el canal público de Slack #compose-web. Si encuentras algún problema, por favor repórtalo en YouTrack.
