@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.ktor)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 group = "com.example.prisma"
@@ -16,4 +17,26 @@ dependencies {
     implementation(libs.ktor.serverNetty)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
+
+    // Autenticación JWT y Contenido JSON para Ktor
+    implementation(libs.ktor.server.auth)
+    implementation(libs.ktor.server.jwt)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.serialization.json)
+
+    // Seguridad (Bcrypt) y Driver PostgreSQL y TOTP
+    implementation(libs.bcrypt)
+    implementation(libs.postgresql)
+    implementation(libs.totp)
+
+
+    // HikariCP (Gestor de conexiones)
+    implementation(libs.hikariCP)
+
+    // Exposed Framework (ORM)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.dao)
+
+
 }
