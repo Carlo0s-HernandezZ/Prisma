@@ -16,7 +16,7 @@ class AuthApiClient {
     }
 
     private val baseUrl = "http://localhost:8080"
-    //private val baseUrl = "http://192.168.100.70:8080" // 10.0.2.2 apunta al localhost de la máquina desde el emulador Android o 192.168.100.70 apunta a la ip de mi computadora o 192.168.42.18que es el adaptador ethernet ( que correspone al celular)
+    //private val baseUrl = "http://192.168.100.70:8080" // 10.0.2.2 apunta al localhost de la máquina desde el emulador Android o 192.168.100.70 apunta a la ip de mi computadora o localhost
 
     suspend fun login(email: String, pass: String): LoginResponse {
         val response = client.post("$baseUrl/api/v1/auth/login") {

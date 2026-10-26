@@ -124,18 +124,18 @@ fun LoginScreen(onLoginSuccess: (accessToken: String) -> Unit) {
                 PrismaField(
                     value = email,
                     onValueChange = { email = it },
-                    placeholder = "EMail"
+                    placeholder = "Correo"
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 PrismaField(
                     value = password,
                     onValueChange = { password = it },
-                    placeholder = "Password",
+                    placeholder = "Contraseña",
                     visualTransformation = PasswordVisualTransformation()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                PrismaButton(text = "Log in", onClick = {
+                PrismaButton(text = "Iniciar sesion", onClick = {
                     scope.launch {
                         try {
                             val res = api.login(email, password)

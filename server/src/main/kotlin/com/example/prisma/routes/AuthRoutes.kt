@@ -13,6 +13,8 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 // Imports de Exposed para interactuar con la Base de Datos
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.javatime.datetime
 import com.example.prisma.database.DatabaseFactory.dbQuery
 
 // Imports de tus DTOs (Models)
@@ -23,59 +25,67 @@ import com.example.prisma.models.Verify2FaResponse
 import com.example.prisma.models.ErrorResponse
 import com.example.prisma.models.RegisterRequest
 import com.example.prisma.models.RegisterResponse
+
+//Imports TOTP
 import dev.samstevens.totp.code.DefaultCodeGenerator
 import dev.samstevens.totp.code.DefaultCodeVerifier
 import dev.samstevens.totp.code.HashingAlgorithm
 import dev.samstevens.totp.qr.QrData
 import dev.samstevens.totp.secret.DefaultSecretGenerator
 import dev.samstevens.totp.time.SystemTimeProvider
+import java.time.LocalDateTime
 
 import org.jetbrains.exposed.sql.insert
 
 // 1. Mapeo exacto de la tabla "users" en tu base de datos PostgreSQL
-object UsersTable : Table("users") {
+object UsuariosTable : Table("usuarios") {
     val id = uuid("id")
-    val email = varchar("email", 255)
-    val passwordHash = varchar("password_hash", 255)
-    val secret2fa = varchar("secret_2fa", 100)
-    val region = varchar("region", 50)
+    val correoElectronico = varchar("correo_electronico", 255)
+    val hashContrasena = varchar("hash_contrasena", 255)
+    val secreta2fa = varchar("secreta_2fa", 100)
+    val region = varchar("region", 5)
+    val fechaCreacion = datetime("fecha_creacion")
+    val fechaActualizacion = datetime("fecha_actualizacion")
 
     override val primaryKey = PrimaryKey(id)
 }
 
 // 2. Modelo de Datos para representar al Usuario en memoria
-data class User(
+data class Usuario(
     val id: String,
-    val email: String,
-    val passwordHash: String,
-    val secret2fa: String
+    val correoElectronico: String,
+    val hashContrasena: String,
+    val secreta2fa: String,
+    val region: String
 )
 
 // 3. Consultas Reales a PostgreSQL usando Exposed y Coroutines (dbQuery)
-suspend fun findUserByEmail(emailParam: String): User? = dbQuery {
-    UsersTable
-        .select { UsersTable.email eq emailParam }
+suspend fun findUserByEmail(emailParam: String): Usuario? = dbQuery {
+    UsuariosTable
+        .select { UsuariosTable.correoElectronico eq emailParam }
         .map { row ->
-            User(
-                id = row[UsersTable.id].toString(),
-                email = row[UsersTable.email],
-                passwordHash = row[UsersTable.passwordHash],
-                secret2fa = row[UsersTable.secret2fa]
+            Usuario(
+                id = row[UsuariosTable.id].toString(),
+                correoElectronico = row[UsuariosTable.correoElectronico],
+                hashContrasena = row[UsuariosTable.hashContrasena],
+                secreta2fa = row[UsuariosTable.secreta2fa],
+                region = row[UsuariosTable.region]
             )
         }
         .singleOrNull()
 }
 
-suspend fun findUserById(idParam: String): User? = dbQuery {
+suspend fun findUserById(idParam: String): Usuario? = dbQuery {
     val uuid = try { java.util.UUID.fromString(idParam) } catch (e: Exception) { return@dbQuery null }
-    UsersTable
-        .select { UsersTable.id eq uuid }
+    UsuariosTable
+        .select { UsuariosTable.id eq uuid }
         .map { row ->
-            User(
-                id = row[UsersTable.id].toString(),
-                email = row[UsersTable.email],
-                passwordHash = row[UsersTable.passwordHash],
-                secret2fa = row[UsersTable.secret2fa]
+            Usuario(
+                id = row[UsuariosTable.id].toString(),
+                correoElectronico = row[UsuariosTable.correoElectronico],
+                hashContrasena = row[UsuariosTable.hashContrasena],
+                secreta2fa = row[UsuariosTable.secreta2fa],
+                region = row[UsuariosTable.region]
             )
         }
         .singleOrNull()
@@ -115,18 +125,18 @@ fun Route.authRoutes() {
                 System.err.println(">>> ERROR: Usuario no existe en PostgreSQL")
                 call.respond(
                     HttpStatusCode.Unauthorized,
-                    ErrorResponse("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos", "2026-10-18T20:00:00Z")
+                    ErrorResponse("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos", java.time.Instant.now().toString())
                 )
                 return@post
             }
 
-            System.err.println(">>> USUARIO ENCONTRADO: ${user.email} | Hash en BD: ${user.passwordHash}")
+            System.err.println(">>> USUARIO ENCONTRADO: ${user.correoElectronico} | Hash en BD: ${user.hashContrasena}")
 
             // 2. Validar contraseña (BCrypt o texto plano temporal)
-            val passwordMatch = if (user.passwordHash.startsWith("$2a$") || user.passwordHash.startsWith("$2b$")) {
-                BCrypt.verifyer().verify(request.password.toCharArray(), user.passwordHash).verified
+            val passwordMatch = if (user.hashContrasena.startsWith("$2a$") || user.hashContrasena.startsWith("$2b$")) {
+                BCrypt.verifyer().verify(request.password.toCharArray(), user.hashContrasena).verified
             } else {
-                request.password == user.passwordHash
+                request.password == user.hashContrasena
             }
 
             System.err.println(">>> VALIDEZ DE CONTRASEÑA: $passwordMatch")
@@ -134,7 +144,7 @@ fun Route.authRoutes() {
             if (!passwordMatch) {
                 call.respond(
                     HttpStatusCode.Unauthorized,
-                    ErrorResponse("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos", "2026-10-18T20:00:00Z")
+                    ErrorResponse("INVALID_CREDENTIALS", "Usuario o contraseña incorrectos", java.time.Instant.now().toString())
                 )
                 return@post
             }
@@ -179,17 +189,17 @@ fun Route.authRoutes() {
             if (user == null) {
                 call.respond(
                     HttpStatusCode.NotFound,
-                    ErrorResponse("USER_NOT_FOUND", "Usuario no encontrado", "2026-10-14T20:00:00Z")
+                    ErrorResponse("USER_NOT_FOUND", "Usuario no encontrado", java.time.Instant.now().toString())
                 )
                 return@post
             }
 
             // 2. Validar código TOTP con el secret_2fa de la BD
-            val isTotpValid = verifyTotpCode(user.secret2fa, request.code)
+            val isTotpValid = verifyTotpCode(user.secreta2fa, request.code)
             if (!isTotpValid) {
                 call.respond(
                     HttpStatusCode.BadRequest,
-                    ErrorResponse("INVALID_2FA_CODE", "El código de autenticación provisto es incorrecto", "2026-10-14T20:00:00Z")
+                    ErrorResponse("INVALID_2FA_CODE", "El código de autenticación provisto es incorrecto", java.time.Instant.now().toString())
                 )
                 return@post
             }
@@ -231,15 +241,17 @@ fun Route.authRoutes() {
 
             val hash = BCrypt.withDefaults().hashToString(12, request.password.toCharArray())
             val secret = DefaultSecretGenerator().generate()
+            val now = LocalDateTime.now()
 
             dbQuery {
-                UsersTable.insert {
+                UsuariosTable.insert {
                     it[id] = java.util.UUID.randomUUID()
-                    it[email] = request.email
-                    it[passwordHash] = hash
-                    //it[secret2fa] = java.util.UUID.randomUUID().toString().replace("-", "").take(32)
-                    it[secret2fa] = secret
+                    it[correoElectronico] = request.email
+                    it[hashContrasena] = hash
+                    it[secreta2fa] = secret
                     it[region] = request.region
+                    it[fechaCreacion] = now
+                    it[fechaActualizacion] = now
                 }
             }
 
@@ -258,8 +270,6 @@ fun Route.authRoutes() {
                 RegisterResponse("Usuario creado", secret, otpauthUri)
             )
         }
-
-
     }
 }
 
