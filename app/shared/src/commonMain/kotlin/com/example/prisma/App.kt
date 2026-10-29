@@ -1,49 +1,37 @@
 package com.example.prisma
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.prisma.dashboard.DashboardScreen
+import com.example.prisma.dashboard.DashboardViewModel
+import com.example.prisma.dashboard.KtorDashboardRepository
+import com.example.prisma.ui.AppTheme
+import com.example.prisma.ui.LoginScreen
 
 @Composable
 fun App() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+    AppTheme {
+        var isAuthenticated by remember { mutableStateOf(false) }
+        var userToken by remember { mutableStateOf("") }
 
-            Text(
-                text = "PRISMA",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
+        if (!isAuthenticated) {
+            LoginScreen(
+                onLoginSuccess = { token ->
+                    userToken = token
+                    isAuthenticated = true
+                }
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Bienvenido al sistema",
-                fontSize = 18.sp
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { }
-            ) {
-                Text("Iniciar sesión")
-            }
+        } else {
+            HomeScreen(token = userToken)
         }
     }
+}
+
+@Composable
+fun HomeScreen(token: String) {
+    val viewModel = remember { DashboardViewModel(KtorDashboardRepository()) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    DashboardScreen(state = state)
 }

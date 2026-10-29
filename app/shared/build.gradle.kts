@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -16,6 +17,9 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
+        }
+        iosTarget.compilations.getByName("main").defaultSourceSet.dependencies {
+            implementation("io.ktor:ktor-client-darwin:3.6.0")
         }
     }
     
@@ -55,6 +59,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation("io.ktor:ktor-client-cio:3.6.0")
         }
         commonMain.dependencies {
             api(project(":core"))
@@ -66,12 +71,20 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-        }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+            implementation(compose.materialIconsExtended)
+            implementation("io.ktor:ktor-client-core:3.6.0")
+            implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
+            implementation("io.ktor:ktor-client-js:3.6.0")
+        }
+        wasmJsMain.dependencies {
+            implementation("io.ktor:ktor-client-js:3.6.0")
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
         }
     }
 }
