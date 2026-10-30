@@ -69,7 +69,7 @@ data class ApiVerify2faRequest(val tempToken: String, val code: String)
 @Serializable
 data class ApiVerify2faResponse(val accessToken: String)
 
-class KtorAuthRepository(private val baseUrl: String = "http://127.0.0.1:8080") : AuthRepository {
+class KtorAuthRepository(private val baseUrl: String = defaultBaseUrl()) : AuthRepository {
     private val client = HttpClient {
         install(ContentNegotiation) {
             json()
