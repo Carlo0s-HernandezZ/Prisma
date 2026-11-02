@@ -79,7 +79,7 @@ data class DashboardResponseDto(
 @Serializable
 data class PaymentAlertDto(val bankName: String, val lastFour: String, val daysLeft: Int)
 
-class KtorDashboardRepository(private val baseUrl: String = "http://127.0.0.1:8080") : DashboardRepository {
+class KtorDashboardRepository(private val baseUrl: String = defaultBaseUrl()) : DashboardRepository {
     private val client = HttpClient {
         install(ContentNegotiation) {
             json()

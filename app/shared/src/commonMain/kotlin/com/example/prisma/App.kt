@@ -47,6 +47,13 @@ fun HomeScreen(
 ) {
     var selectedDestination by remember { mutableStateOf(NavDestination.Home) }
     val viewModel = remember(userEmail) { DashboardViewModel(KtorDashboardRepository(), userEmail) }
+
+    LaunchedEffect(selectedDestination) {
+        if (selectedDestination == NavDestination.Home) {
+            viewModel.refresh()
+        }
+    }
+
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     when (selectedDestination) {
