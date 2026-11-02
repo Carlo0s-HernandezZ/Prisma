@@ -37,6 +37,7 @@ data class DashboardUiState(
     val radarSeries: List<RadarSeriesData> = emptyList(),
     val alerts: List<PaymentAlert> = emptyList(),
     val totalToPayMxn: Double = 0.0,
+    val isLoading: Boolean = true,
 )
 
 interface DashboardRepository {
@@ -107,7 +108,8 @@ class KtorDashboardRepository(private val baseUrl: String = defaultBaseUrl()) : 
                             RadarSeriesData(RadarSeriesType.Income, "Ingresos", listOf(2f, 1.5f, 1.5f, 3f, 8f))
                         ),
                         alerts = dto.alerts.map { PaymentAlert(it.bankName, it.lastFour, it.daysLeft) },
-                        totalToPayMxn = dto.totalToPayMxn
+                        totalToPayMxn = dto.totalToPayMxn,
+                        isLoading = false
                     )
                 )
                 return@flow

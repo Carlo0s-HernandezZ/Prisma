@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.prisma.components.*
 import com.example.prisma.ui.Prisma
+import com.example.prisma.ui.SkeletonBox
 
 @Composable
 fun DashboardScreen(
@@ -24,7 +25,39 @@ fun DashboardScreen(
     onNavigate: (NavDestination) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // Centrado y con ancho máximo para que en Web/escritorio se vea como el mockup móvil.
+    if (state.isLoading) {
+        DashboardSkeleton(onNavigate = onNavigate, modifier = modifier)
+    } else {
+        Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Header(state.userName, state.status)
+
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    RadarCard(state)
+                    AlertsCard(state)
+                }
+
+                BottomNavBar(selected = NavDestination.Home, onSelect = onNavigate)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardSkeleton(
+    onNavigate: (NavDestination) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
@@ -34,14 +67,48 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Header(state.userName, state.status)
-
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+            // Header Skeleton
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                RadarCard(state)
-                AlertsCard(state)
+                SkeletonBox(Modifier.width(140.dp), height = 44.dp, shape = RoundedCornerShape(16.dp))
+                SkeletonBox(Modifier.width(120.dp), height = 44.dp, shape = RoundedCornerShape(16.dp))
+            }
+
+            // Cards Skeleton
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Radar Card Skeleton
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
+                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
+                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
+                        }
+                        SkeletonBox(Modifier.fillMaxWidth().aspectRatio(1.05f), shape = RoundedCornerShape(20.dp))
+                    }
+                }
+
+                // Alerts Card Skeleton
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        SkeletonBox(Modifier.fillMaxWidth(), height = 48.dp, shape = RoundedCornerShape(16.dp))
+                        SkeletonBox(Modifier.fillMaxWidth(), height = 48.dp, shape = RoundedCornerShape(16.dp))
+                        SkeletonBox(Modifier.fillMaxWidth(), height = 52.dp, shape = RoundedCornerShape(16.dp))
+                    }
+                }
             }
 
             BottomNavBar(selected = NavDestination.Home, onSelect = onNavigate)
@@ -65,7 +132,6 @@ private fun Header(userName: String, status: FinancialStatus) {
                     Modifier
                         .size(20.dp)
                         .background(status.color(), CircleShape)
-                        // El estado no debe depender solo del color (accesibilidad).
                         .semantics { contentDescription = "Estado financiero: ${status.label()}" },
                 )
             }
@@ -117,7 +183,6 @@ private fun AlertsCard(state: DashboardUiState) {
     }
 }
 
-/** Cápsula con sombra usada por saludo, estado y cada mensaje. */
 @Composable
 private fun Pill(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     SoftCard(modifier, shape = RoundedCornerShape(16.dp), elevation = 8.dp) {
@@ -145,7 +210,6 @@ private fun RadarSeriesType.color(): Color = when (this) {
     RadarSeriesType.Investment -> Prisma.colors.investment
 }
 
-/** 15000.0 -> "$15,000" */
 private fun Double.toMxn(): String {
     val grouped = toLong().toString().reversed().chunked(3).joinToString(",").reversed()
     return "\$$grouped"
