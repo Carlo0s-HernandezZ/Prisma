@@ -20,6 +20,7 @@ data class LoginUiState(
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val isRegistering: Boolean = false,
+    val registerResult: ApiRegisterResponse? = null,
     val accessToken: String? = null,
 )
 
@@ -40,7 +41,11 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     fun togglePasswordVisibility() = _state.update { it.copy(passwordVisible = !it.passwordVisible) }
 
     fun toggleRegisterMode() = _state.update { 
-        it.copy(isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials) 
+        it.copy(isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials, registerResult = null) 
+    }
+
+    fun dismissRegisterResult() {
+        _state.update { it.copy(registerResult = null, isRegistering = false) }
     }
 
     fun backToCredentials() {
@@ -63,12 +68,13 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         viewModelScope.launch {
             repository.register(email, s.password).fold(
-                onSuccess = {
+                onSuccess = { response ->
                     _state.update { 
                         it.copy(
                             isLoading = false, 
+                            registerResult = response,
                             isRegistering = false,
-                            successMessage = "¡Cuenta creada con éxito! Ahora inicia sesión."
+                            successMessage = "¡Cuenta creada con éxito!"
                         ) 
                     }
                 },

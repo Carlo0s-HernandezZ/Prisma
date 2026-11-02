@@ -40,13 +40,13 @@ data class DashboardUiState(
 )
 
 interface DashboardRepository {
-    fun observeDashboard(): Flow<DashboardUiState>
+    fun observeDashboard(email: String = ""): Flow<DashboardUiState>
 }
 
 class FakeDashboardRepository : DashboardRepository {
-    override fun observeDashboard(): Flow<DashboardUiState> = flowOf(
+    override fun observeDashboard(email: String): Flow<DashboardUiState> = flowOf(
         DashboardUiState(
-            userName = "Casandra",
+            userName = "",
             status = FinancialStatus.Critical,
             radarAxes = listOf(
                 "Capacidad de Pago", "Alertas MSI", "Nivel de Ahorro",
@@ -86,9 +86,10 @@ class KtorDashboardRepository(private val baseUrl: String = "http://127.0.0.1:80
         }
     }
 
-    override fun observeDashboard(): Flow<DashboardUiState> = flow {
+    override fun observeDashboard(email: String): Flow<DashboardUiState> = flow {
         try {
-            val response = client.get("$baseUrl/api/v1/reports/latest")
+            val url = if (email.isNotBlank()) "$baseUrl/api/v1/reports/latest?email=$email" else "$baseUrl/api/v1/reports/latest"
+            val response = client.get(url)
             if (response.status.isSuccess()) {
                 val dto: DashboardResponseDto = response.body()
                 emit(
@@ -115,7 +116,7 @@ class KtorDashboardRepository(private val baseUrl: String = "http://127.0.0.1:80
 
         emit(
             DashboardUiState(
-                userName = "Casandra",
+                userName = "",
                 status = FinancialStatus.Critical,
                 radarAxes = listOf(
                     "Capacidad de Pago", "Alertas MSI", "Nivel de Ahorro",

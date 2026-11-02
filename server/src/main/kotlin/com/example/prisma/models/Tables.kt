@@ -17,6 +17,17 @@ object UsuariosTable : Table("usuarios") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object DatosPersonalesTable : Table("datos_personales") {
+    val id = integer("id").autoIncrement()
+    val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
+    val nombre = varchar("nombre", 100)
+    val apellido = varchar("apellido", 100)
+    val fechaNacimiento = date("fecha_nacimiento").nullable()
+    val fechaCreacion = timestamp("fecha_creacion").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 object IngresosTable : Table("ingresos") {
     val id = uuid("id")
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)

@@ -1,5 +1,6 @@
 package com.example.prisma
 
+import at.favre.lib.crypto.bcrypt.BCrypt
 import com.example.prisma.db.DatabaseFactory
 import com.example.prisma.models.*
 import com.example.prisma.utils.TotpUtils
@@ -15,9 +16,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 import java.net.URLEncoder
+import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 fun main() {
@@ -47,6 +54,17 @@ data class RegisterResponse(
     val qrCodeUrl: String,
     val otpauthUrl: String
 )
+
+@Serializable
+data class PersonalDataRequest(
+    val email: String,
+    val nombre: String,
+    val apellido: String,
+    val fechaNacimiento: String? = null
+)
+
+@Serializable
+data class PersonalDataResponse(val message: String, val profileId: Int)
 
 @Serializable
 data class PaymentAlertDto(val bankName: String, val lastFour: String, val daysLeft: Int)
@@ -81,27 +99,29 @@ fun Application.module() {
 
     routing {
         get("/") {
-            call.respondText("Prisma API running with QR Code & TOTP 2FA")
+            call.respondText("Prisma API running with Dynamic User Greeting & TOTP 2FA")
         }
 
         post("/api/v1/auth/register") {
             val req = call.receive<RegisterRequest>()
+            val cleanEmail = req.email.trim().lowercase()
             try {
                 val defaultSecret = "JBSWY3DPEHPK3PXP"
-                val otpauthUrl = "otpauth://totp/Prisma:${req.email}?secret=$defaultSecret&issuer=Prisma"
+                val otpauthUrl = "otpauth://totp/Prisma:$cleanEmail?secret=$defaultSecret&issuer=Prisma"
                 val qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${URLEncoder.encode(otpauthUrl, "UTF-8")}"
 
                 val newId = DatabaseFactory.dbQuery {
                     val existing = UsuariosTable.selectAll()
-                        .where { UsuariosTable.correoElectronico eq req.email }
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq cleanEmail }
                         .singleOrNull()
                     if (existing != null) {
                         null
                     } else {
+                        val hashedPassword = BCrypt.withDefaults().hashToString(12, req.password.toCharArray())
                         UsuariosTable.insert {
                             it[id] = UUID.randomUUID()
-                            it[correoElectronico] = req.email
-                            it[hashContrasena] = req.password
+                            it[correoElectronico] = cleanEmail
+                            it[hashContrasena] = hashedPassword
                             it[secreta2fa] = defaultSecret
                             it[region] = req.region
                         }[UsuariosTable.id]
@@ -118,17 +138,143 @@ fun Application.module() {
             }
         }
 
+        get("/api/v1/user/profile") {
+            val email = call.request.queryParameters["email"]?.trim()?.lowercase()
+            if (email == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email parameter required"))
+                return@get
+            }
+
+            try {
+                val profile = DatabaseFactory.dbQuery {
+                    val user = UsuariosTable.selectAll()
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq email }
+                        .singleOrNull()
+
+                    if (user != null) {
+                        val uId = user[UsuariosTable.id]
+                        val data = DatosPersonalesTable.selectAll()
+                            .where { DatosPersonalesTable.usuarioId eq uId }
+                            .singleOrNull()
+
+                        if (data != null) {
+                            PersonalDataRequest(
+                                email = email,
+                                nombre = data[DatosPersonalesTable.nombre],
+                                apellido = data[DatosPersonalesTable.apellido],
+                                fechaNacimiento = data[DatosPersonalesTable.fechaNacimiento]?.toString()
+                            )
+                        } else null
+                    } else null
+                }
+
+                if (profile != null) {
+                    call.respond(HttpStatusCode.OK, profile)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Profile not found"))
+                }
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Failed to read profile")))
+            }
+        }
+
+        post("/api/v1/user/profile") {
+            val req = call.receive<PersonalDataRequest>()
+            val cleanEmail = req.email.trim().lowercase()
+            try {
+                val profileId = DatabaseFactory.dbQuery {
+                    val user = UsuariosTable.selectAll()
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq cleanEmail }
+                        .singleOrNull()
+
+                    if (user == null) {
+                        null
+                    } else {
+                        val uId = user[UsuariosTable.id]
+                        val existing = DatosPersonalesTable.selectAll()
+                            .where { DatosPersonalesTable.usuarioId eq uId }
+                            .singleOrNull()
+
+                        if (existing != null) {
+                            DatosPersonalesTable.update({ DatosPersonalesTable.usuarioId eq uId }) {
+                                it[nombre] = req.nombre
+                                it[apellido] = req.apellido
+                                it[fechaNacimiento] = req.fechaNacimiento?.let { f -> LocalDate.parse(f) }
+                                if (existing[fechaCreacion] == null) {
+                                    it[fechaCreacion] = Instant.now()
+                                }
+                            }
+                            existing[DatosPersonalesTable.id]
+                        } else {
+                            DatosPersonalesTable.insert {
+                                it[usuarioId] = uId
+                                it[nombre] = req.nombre
+                                it[apellido] = req.apellido
+                                it[fechaNacimiento] = req.fechaNacimiento?.let { f -> LocalDate.parse(f) }
+                                it[fechaCreacion] = Instant.now()
+                            }[DatosPersonalesTable.id]
+                        }
+                    }
+                }
+
+                if (profileId != null) {
+                    call.respond(HttpStatusCode.Created, PersonalDataResponse("Personal data saved successfully", profileId))
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "User not found"))
+                }
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Failed to save profile")))
+            }
+        }
+
+        delete("/api/v1/user/profile") {
+            val email = call.request.queryParameters["email"]?.trim()?.lowercase()
+            if (email == null) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Email parameter required"))
+                return@delete
+            }
+
+            try {
+                val deleted = DatabaseFactory.dbQuery {
+                    val user = UsuariosTable.selectAll()
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq email }
+                        .singleOrNull()
+
+                    if (user != null) {
+                        val uId = user[UsuariosTable.id]
+                        DatosPersonalesTable.deleteWhere { usuarioId eq uId }
+                    } else 0
+                }
+
+                if (deleted > 0) {
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Profile deleted successfully"))
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Profile not found"))
+                }
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Failed to delete profile")))
+            }
+        }
+
         post("/api/v1/auth/login") {
             val req = call.receive<LoginRequest>()
+            val cleanEmail = req.email.trim().lowercase()
             val userFound = DatabaseFactory.dbQuery {
                 UsuariosTable.selectAll()
-                    .where { UsuariosTable.correoElectronico eq req.email }
+                    .where { UsuariosTable.correoElectronico.lowerCase() eq cleanEmail }
                     .singleOrNull()
             }
 
-            if (userFound != null || (req.email.contains("@") && req.password.isNotBlank())) {
+            val isPasswordValid = if (userFound != null) {
+                val storedHash = userFound[UsuariosTable.hashContrasena]
+                BCrypt.verifyer().verify(req.password.toCharArray(), storedHash).verified || storedHash == req.password
+            } else {
+                req.email.contains("@") && req.password.isNotBlank()
+            }
+
+            if (isPasswordValid) {
                 val tempToken = "prisma_temp_token_${System.currentTimeMillis()}"
-                activeTempTokens[tempToken] = req.email
+                activeTempTokens[tempToken] = cleanEmail
                 call.respond(LoginResponse(tempToken))
             } else {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid credentials"))
@@ -142,7 +288,7 @@ fun Application.module() {
             val user = email?.let { em ->
                 DatabaseFactory.dbQuery {
                     UsuariosTable.selectAll()
-                        .where { UsuariosTable.correoElectronico eq em }
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq em }
                         .singleOrNull()
                 }
             }
@@ -159,6 +305,31 @@ fun Application.module() {
         }
 
         get("/api/v1/reports/latest") {
+            val email = call.request.queryParameters["email"]?.trim()?.lowercase()
+            println("--> DASHBOARD REPORT REQUEST FOR EMAIL: '$email'")
+            
+            val userName = if (!email.isNullOrBlank()) {
+                DatabaseFactory.dbQuery {
+                    val user = UsuariosTable.selectAll()
+                        .where { UsuariosTable.correoElectronico.lowerCase() eq email }
+                        .singleOrNull()
+
+                    println("--> USER FOUND IN DB: ${user?.get(UsuariosTable.correoElectronico)}")
+                    
+                    if (user != null) {
+                        val uId = user[UsuariosTable.id]
+                        val profile = DatosPersonalesTable.selectAll()
+                            .where { DatosPersonalesTable.usuarioId eq uId }
+                            .singleOrNull()
+                        val foundName = profile?.get(DatosPersonalesTable.nombre) ?: ""
+                        println("--> PROFILE FOUND FOR USER $uId: '$foundName'")
+                        foundName
+                    } else ""
+                }
+            } else ""
+
+            println("--> FINAL DASHBOARD USERNAME RETURNED: '$userName'")
+
             val alerts = listOf(
                 PaymentAlertDto("Citi", "1635", 5),
                 PaymentAlertDto("Nu", "3489", 3),
@@ -166,7 +337,7 @@ fun Application.module() {
             )
             call.respond(
                 DashboardResponse(
-                    userName = "Casandra",
+                    userName = userName,
                     status = "Critical",
                     radarAxes = listOf("Capacidad de Pago", "Alertas MSI", "Nivel de Ahorro", "Control de Gastos", "Uso de Crédito"),
                     alerts = alerts,

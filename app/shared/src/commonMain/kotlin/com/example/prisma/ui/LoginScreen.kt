@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.prisma.auth.ApiRegisterResponse
 import com.example.prisma.auth.KtorAuthRepository
 import com.example.prisma.auth.LoginStep
 import com.example.prisma.auth.LoginUiState
@@ -78,14 +79,18 @@ private val ButtonColor = PrismaPalette.Dorado
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (String) -> Unit,
+    onLoginSuccess: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
     onForgotPassword: () -> Unit = {},
     viewModel: LoginViewModel = viewModel { LoginViewModel(KtorAuthRepository()) },
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnSuccess by rememberUpdatedState(onLoginSuccess)
-    LaunchedEffect(state.accessToken) { state.accessToken?.let { currentOnSuccess(it) } }
+    LaunchedEffect(state.accessToken) { 
+        state.accessToken?.let { token ->
+            currentOnSuccess(token, state.email) 
+        } 
+    }
 
     val colors = Prisma.colors
     val isLight = colors.background.luminance() > 0.5f
@@ -121,26 +126,33 @@ fun LoginScreen(
                     .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                AnimatedContent(
-                    targetState = state.step,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                ) { step ->
-                    when (step) {
-                        LoginStep.Credentials -> CredentialsForm(
-                            state = state,
-                            onEmailChange = viewModel::onEmailChange,
-                            onPasswordChange = viewModel::onPasswordChange,
-                            onTogglePassword = viewModel::togglePasswordVisibility,
-                            onSubmit = viewModel::submit,
-                            onToggleRegister = viewModel::toggleRegisterMode,
-                            onForgotPassword = onForgotPassword,
-                        )
-                        LoginStep.TwoFactor -> TwoFactorForm(
-                            state = state,
-                            onCodeChange = viewModel::onCodeChange,
-                            onSubmit = viewModel::submit,
-                            onBack = viewModel::backToCredentials,
-                        )
+                if (state.registerResult != null) {
+                    RegisterSuccessForm(
+                        result = state.registerResult!!,
+                        onDismiss = viewModel::dismissRegisterResult
+                    )
+                } else {
+                    AnimatedContent(
+                        targetState = state.step,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    ) { step ->
+                        when (step) {
+                            LoginStep.Credentials -> CredentialsForm(
+                                state = state,
+                                onEmailChange = viewModel::onEmailChange,
+                                onPasswordChange = viewModel::onPasswordChange,
+                                onTogglePassword = viewModel::togglePasswordVisibility,
+                                onSubmit = viewModel::submit,
+                                onToggleRegister = viewModel::toggleRegisterMode,
+                                onForgotPassword = onForgotPassword,
+                            )
+                            LoginStep.TwoFactor -> TwoFactorForm(
+                                state = state,
+                                onCodeChange = viewModel::onCodeChange,
+                                onSubmit = viewModel::submit,
+                                onBack = viewModel::backToCredentials,
+                            )
+                        }
                     }
                 }
 
@@ -152,6 +164,33 @@ fun LoginScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RegisterSuccessForm(
+    result: ApiRegisterResponse,
+    onDismiss: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Header("¡Cuenta Creada!", "Configura Google Authenticator con esta clave secreta:")
+
+        PillField(
+            value = result.secret2fa,
+            onValueChange = {},
+            placeholder = "",
+            label = "Clave 2FA de Google Authenticator",
+            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        )
+
+        Text(
+            text = "Copia esta clave de 16 caracteres y agrégala en la aplicación Google Authenticator de tu celular.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkOnPanel,
+            textAlign = TextAlign.Center
+        )
+
+        PrimaryPillButton("Ir a Iniciar Sesión", onClick = onDismiss, loading = false)
     }
 }
 

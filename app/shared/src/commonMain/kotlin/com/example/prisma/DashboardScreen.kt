@@ -56,7 +56,8 @@ private fun Header(userName: String, status: FinancialStatus) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Pill { Text("Hola, $userName", style = MaterialTheme.typography.bodyLarge) }
+        val greeting = if (userName.isNotBlank()) "Hola, $userName" else "Hola."
+        Pill { Text(greeting, style = MaterialTheme.typography.bodyLarge) }
         Pill {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Estado:", style = MaterialTheme.typography.bodyLarge)
