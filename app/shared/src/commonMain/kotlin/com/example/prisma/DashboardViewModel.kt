@@ -7,19 +7,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModel(
     private val repository: DashboardRepository,
-    private val userEmail: String = ""
 ) : ViewModel() {
 
     private val _refreshTrigger = MutableStateFlow(0)
 
     val uiState: StateFlow<DashboardUiState> = _refreshTrigger
-        .flatMapLatest { repository.observeDashboard(userEmail) }
+        .flatMapLatest { repository.observeDashboard().onStart { emit(DashboardUiState(isLoading = true)) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
     fun refresh() {

@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,19 +16,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.prisma.components.*
 import com.example.prisma.ui.Prisma
+import com.example.prisma.ui.PrismaPalette
 import com.example.prisma.ui.SkeletonBox
 
 @Composable
 fun DashboardScreen(
     state: DashboardUiState,
-    onNavigate: (NavDestination) -> Unit = {},
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.isLoading) {
-        DashboardSkeleton(onNavigate = onNavigate, modifier = modifier)
+        DashboardSkeleton(modifier = modifier)
     } else {
         Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
             Column(
@@ -37,17 +41,20 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Header(state.userName, state.status)
+                if (state.errorMessage != null) {
+                    ErrorCard(state.errorMessage, onRetry, Modifier.weight(1f))
+                } else {
+                    Header(state.userName, state.status)
 
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    RadarCard(state)
-                    AlertsCard(state)
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                    ) {
+                        RadarCard(state)
+                        AlertsCard(state)
+                        Spacer(Modifier.height(BottomNavBarReservedSpace))
+                    }
                 }
-
-                BottomNavBar(selected = NavDestination.Home, onSelect = onNavigate)
             }
         }
     }
@@ -55,7 +62,6 @@ fun DashboardScreen(
 
 @Composable
 fun DashboardSkeleton(
-    onNavigate: (NavDestination) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
@@ -111,7 +117,24 @@ fun DashboardSkeleton(
                 }
             }
 
-            BottomNavBar(selected = NavDestination.Home, onSelect = onNavigate)
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        SoftCard(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxWidth().padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado)) {
+                    Text("Reintentar", color = PrismaPalette.Grafito)
+                }
+            }
         }
     }
 }

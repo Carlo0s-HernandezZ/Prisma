@@ -19,26 +19,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.prisma.components.BottomNavBar
-import com.example.prisma.components.NavDestination
+import com.example.prisma.components.BottomNavBarReservedSpace
 import com.example.prisma.components.SoftCard
-import com.example.prisma.defaultBaseUrl
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class PersonalDataDto(
-    val email: String,
-    val nombre: String,
-    val apellido: String,
-    val fechaNacimiento: String? = null
-)
+import com.example.prisma.profile.ProfileViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private fun formatEpochMillisToDateString(millis: Long): String {
     val totalSeconds = millis / 1000
@@ -64,27 +48,31 @@ private fun formatEpochMillisToDateString(millis: Long): String {
 @Composable
 fun ProfileScreen(
     userEmail: String,
-    onNavigate: (NavDestination) -> Unit,
+    viewModel: ProfileViewModel,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    val client = remember {
-        HttpClient {
-            install(ContentNegotiation) { json() }
-        }
-    }
-    val baseUrl = remember { defaultBaseUrl() }
-
-    var nombre by remember { mutableStateOf("") }
-    var apellido by remember { mutableStateOf("") }
-    var fechaNacimiento by remember { mutableStateOf("") }
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
 
-    var isLoading by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    var isError by remember { mutableStateOf(false) }
+    if (state.confirmDelete) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelDelete,
+            title = { Text("¿Eliminar datos personales?") },
+            text = { Text("Se borrarán tu nombre, apellido y fecha de nacimiento. Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete) {
+                    Text("Eliminar", color = Prisma.colors.statusCritical)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelDelete) {
+                    Text("Cancelar", color = Prisma.colors.onSurface)
+                }
+            }
+        )
+    }
 
     // Date Picker Dialog
     if (showDatePicker) {
@@ -94,7 +82,7 @@ fun ProfileScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            fechaNacimiento = formatEpochMillisToDateString(millis)
+                            viewModel.onFechaChange(formatEpochMillisToDateString(millis))
                         }
                         showDatePicker = false
                     }
@@ -109,21 +97,6 @@ fun ProfileScreen(
             }
         ) {
             DatePicker(state = datePickerState)
-        }
-    }
-
-    // Fetch existing profile on launch
-    LaunchedEffect(userEmail) {
-        if (userEmail.isNotBlank()) {
-            try {
-                val response = client.get("$baseUrl/api/v1/user/profile?email=$userEmail")
-                if (response.status.isSuccess()) {
-                    val dto: PersonalDataDto = response.body()
-                    nombre = dto.nombre
-                    apellido = dto.apellido
-                    fechaNacimiento = dto.fechaNacimiento ?: ""
-                }
-            } catch (_: Exception) {}
         }
     }
 
@@ -148,7 +121,7 @@ fun ProfileScreen(
                         color = Prisma.colors.onSurface
                     )
                     Text(
-                        text = userEmail.ifBlank { "usuario@prisma.com" },
+                        text = userEmail,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Prisma.colors.onSurface.copy(alpha = 0.7f)
                     )
@@ -168,16 +141,18 @@ fun ProfileScreen(
                         )
 
                         OutlinedTextField(
-                            value = nombre,
-                            onValueChange = { nombre = it },
+                            value = state.nombre,
+                            onValueChange = viewModel::onNombreChange,
+                            enabled = !state.isLoading,
                             label = { Text("Nombre") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
 
                         OutlinedTextField(
-                            value = apellido,
-                            onValueChange = { apellido = it },
+                            value = state.apellido,
+                            onValueChange = viewModel::onApellidoChange,
+                            enabled = !state.isLoading,
                             label = { Text("Apellido") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
@@ -190,7 +165,7 @@ fun ProfileScreen(
                                 .clickable { showDatePicker = true }
                         ) {
                             OutlinedTextField(
-                                value = fechaNacimiento,
+                                value = state.fechaNacimiento,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Fecha de Nacimiento") },
@@ -206,11 +181,11 @@ fun ProfileScreen(
                             )
                         }
 
-                        message?.let {
+                        state.message?.let {
                             Text(
                                 text = it,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = if (isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
+                                color = if (state.isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                             )
@@ -218,80 +193,23 @@ fun ProfileScreen(
 
                         // Save / Update Button
                         Button(
-                            onClick = {
-                                if (nombre.isBlank() || apellido.isBlank()) {
-                                    message = "Por favor ingresa nombre y apellido."
-                                    isError = true
-                                    return@Button
-                                }
-                                isLoading = true
-                                message = null
-                                scope.launch {
-                                    try {
-                                        val response = client.post("$baseUrl/api/v1/user/profile") {
-                                            contentType(ContentType.Application.Json)
-                                            setBody(
-                                                PersonalDataDto(
-                                                    email = userEmail.ifBlank { "usuario@prisma.com" },
-                                                    nombre = nombre,
-                                                    apellido = apellido,
-                                                    fechaNacimiento = fechaNacimiento.ifBlank { null }
-                                                )
-                                            )
-                                        }
-                                        if (response.status.isSuccess()) {
-                                            message = "¡Datos personales guardados con éxito!"
-                                            isError = false
-                                        } else {
-                                            message = "Error al guardar los datos."
-                                            isError = true
-                                        }
-                                    } catch (e: Exception) {
-                                        message = "Error de red: ${e.message}"
-                                        isError = true
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
-                            },
+                            onClick = viewModel::save,
+                            enabled = !state.isLoading,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado)
                         ) {
-                            if (isLoading) {
+                            if (state.isLoading) {
                                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                             } else {
                                 Text("Guardar / Actualizar", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
                             }
                         }
 
-                        // Delete Personal Data Button
+                        // Delete Personal Data Button (pide confirmación)
                         OutlinedButton(
-                            onClick = {
-                                isLoading = true
-                                message = null
-                                scope.launch {
-                                    try {
-                                        val emailToDelete = userEmail.ifBlank { "usuario@prisma.com" }
-                                        val response = client.delete("$baseUrl/api/v1/user/profile?email=$emailToDelete")
-                                        if (response.status.isSuccess()) {
-                                            nombre = ""
-                                            apellido = ""
-                                            fechaNacimiento = ""
-                                            message = "Datos personales eliminados de PostgreSQL."
-                                            isError = false
-                                        } else {
-                                            message = "No se encontraron datos para eliminar."
-                                            isError = true
-                                        }
-                                    } catch (_: Exception) {
-                                        message = "Error de red al eliminar."
-                                        isError = true
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
-                            },
+                            onClick = viewModel::requestDelete,
+                            enabled = !state.isLoading,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Prisma.colors.statusCritical)
@@ -317,10 +235,9 @@ fun ProfileScreen(
                         )
                     }
                 }
-            }
 
-            // Bottom Nav Bar
-            BottomNavBar(selected = NavDestination.Profile, onSelect = onNavigate)
+                Spacer(Modifier.height(BottomNavBarReservedSpace))
+            }
         }
     }
 }

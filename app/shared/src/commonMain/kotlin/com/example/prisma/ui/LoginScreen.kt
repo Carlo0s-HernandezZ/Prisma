@@ -65,8 +65,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.prisma.auth.ApiRegisterResponse
+import com.example.prisma.api.RegisterResponse
+import com.example.prisma.getPlatform
+import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import com.example.prisma.auth.KtorAuthRepository
 import com.example.prisma.auth.LoginStep
 import com.example.prisma.auth.LoginUiState
@@ -86,10 +94,11 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnSuccess by rememberUpdatedState(onLoginSuccess)
-    LaunchedEffect(state.accessToken) { 
-        state.accessToken?.let { token ->
-            currentOnSuccess(token, state.email) 
-        } 
+    LaunchedEffect(state.session) {
+        state.session?.let { session ->
+            viewModel.onSessionConsumed()
+            currentOnSuccess(session.accessToken, session.email)
+        }
     }
 
     val colors = Prisma.colors
@@ -169,28 +178,91 @@ fun LoginScreen(
 
 @Composable
 private fun RegisterSuccessForm(
-    result: ApiRegisterResponse,
+    result: RegisterResponse,
     onDismiss: () -> Unit
 ) {
+    val isMobile = remember { getPlatform().isMobile }
+    val uriHandler = LocalUriHandler.current
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    var openFailed by remember { mutableStateOf(false) }
+    val linkStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Header("¡Cuenta Creada!", "Configura Google Authenticator con esta clave secreta:")
+        Header(
+            "¡Cuenta Creada!",
+            if (isMobile) "Agrega tu cuenta a Google Authenticator:" else "Escanea este código con Google Authenticator:",
+        )
+
+        // El QR se genera dentro de la app: la clave nunca sale del dispositivo.
+        if (result.otpauthUrl.isNotBlank()) {
+            val qrPainter = rememberQrCodePainter(result.otpauthUrl) { }
+            Box(
+                modifier = Modifier
+                    .size(if (isMobile) 180.dp else 220.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = qrPainter,
+                    contentDescription = "Código QR para configurar Google Authenticator",
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            if (isMobile) {
+                // En el celular no puedes escanear tu propia pantalla: se abre Authenticator directamente.
+                PrimaryPillButton(
+                    "Abrir en Authenticator",
+                    onClick = { openFailed = runCatching { uriHandler.openUri(result.otpauthUrl) }.isFailure },
+                    loading = false,
+                )
+                if (openFailed) {
+                    ErrorBanner("No se encontró una app de autenticación. Instala Google Authenticator o usa la clave de abajo.")
+                }
+            }
+        }
+
+        Text(
+            text = "¿No puedes escanear? En Authenticator elige \"Ingresar clave de configuración\" y escribe:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkOnPanel,
+            textAlign = TextAlign.Center,
+        )
 
         PillField(
-            value = result.secret2fa,
+            value = result.secret2fa.chunked(4).joinToString(" "),
             onValueChange = {},
             placeholder = "",
             label = "Clave 2FA de Google Authenticator",
-            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         )
 
         Text(
-            text = "Copia esta clave de 16 caracteres y agrégala en la aplicación Google Authenticator de tu celular.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = if (copied) "¡Clave copiada!" else "Copiar clave",
+            style = linkStyle,
             color = InkOnPanel,
-            textAlign = TextAlign.Center
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(role = Role.Button) {
+                    clipboard.setText(AnnotatedString(result.secret2fa))
+                    copied = true
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         )
 
-        PrimaryPillButton("Ir a Iniciar Sesión", onClick = onDismiss, loading = false)
+        Text(
+            text = "Es única para tu cuenta: no la compartas.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkOnPanel,
+            textAlign = TextAlign.Center,
+        )
+
+        PrimaryPillButton("Ya la agregué, iniciar sesión", onClick = onDismiss, loading = false)
     }
 }
 

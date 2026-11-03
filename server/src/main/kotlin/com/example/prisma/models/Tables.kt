@@ -2,17 +2,20 @@ package com.example.prisma.models
 
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.javatime.timestamp
 import java.math.BigDecimal
 
+// Las fechas de registro/actualización usan el DEFAULT CURRENT_TIMESTAMP de PostgreSQL.
+// Sin defaultExpression, Exposed enviaba NULL explícito en el INSERT y anulaba ese DEFAULT.
 object UsuariosTable : Table("usuarios") {
     val id = uuid("id")
     val correoElectronico = varchar("correo_electronico", 255).uniqueIndex()
     val hashContrasena = varchar("hash_contrasena", 255)
     val secreta2fa = varchar("secreta_2fa", 100)
     val region = varchar("region", 5).default("MX")
-    val fechaCreacion = timestamp("fecha_creacion").nullable()
-    val fechaActualizacion = timestamp("fecha_actualizacion").nullable()
+    val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
+    val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -23,7 +26,7 @@ object DatosPersonalesTable : Table("datos_personales") {
     val nombre = varchar("nombre", 100)
     val apellido = varchar("apellido", 100)
     val fechaNacimiento = date("fecha_nacimiento").nullable()
-    val fechaCreacion = timestamp("fecha_creacion").nullable()
+    val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -33,7 +36,7 @@ object IngresosTable : Table("ingresos") {
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
     val montoNeto = decimal("monto_neto", 12, 2)
     val esAuditado = bool("es_auditado").default(false)
-    val fechaRegistro = timestamp("fecha_registro").nullable()
+    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -43,7 +46,7 @@ object AsesoriaFinancieraTable : Table("asesoria_financiera") {
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
     val asesoriaTexto = text("asesoria_texto")
     val hashAsesoria = varchar("hash_asesoria", 64)
-    val fechaActualizacion = timestamp("fecha_actualizacion").nullable()
+    val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -61,7 +64,7 @@ object ResumenGastosTable : Table("resumen_gastos") {
     val periodoAnio = integer("periodo_anio")
     val periodoMes = integer("periodo_mes")
     val totalGastadoMxn = decimal("total_gastado_mxn", 12, 2).default(BigDecimal.ZERO)
-    val fechaActualizacion = timestamp("fecha_actualizacion").nullable()
+    val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -72,7 +75,7 @@ object TarjetasCreditoTable : Table("tarjetas_credito") {
     val banco = varchar("nombre_banco", 100)
     val alias = varchar("alias_tarjeta", 150)
     val ultimosCuatro = varchar("ultimos_cuatro_digitos", 4).nullable()
-    val fechaRegistro = timestamp("fecha_registro").nullable()
+    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -85,7 +88,7 @@ object TransaccionesTable : Table("transacciones") {
     val descripcion = varchar("descripcion", 255)
     val montoMxn = decimal("monto_mxn", 12, 2)
     val monedaOriginal = varchar("moneda_original", 10).default("MXN")
-    val fechaRegistro = timestamp("fecha_registro").nullable()
+    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }

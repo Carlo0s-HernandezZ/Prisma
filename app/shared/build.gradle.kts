@@ -19,7 +19,7 @@ kotlin {
             isStatic = true
         }
         iosTarget.compilations.getByName("main").defaultSourceSet.dependencies {
-            implementation("io.ktor:ktor-client-darwin:3.6.0")
+            implementation(libs.ktor.clientDarwin)
         }
     }
     
@@ -59,7 +59,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            implementation("io.ktor:ktor-client-cio:3.6.0")
+            implementation(libs.ktor.clientCio)
         }
         commonMain.dependencies {
             api(project(":core"))
@@ -72,16 +72,17 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(compose.materialIconsExtended)
-            implementation("io.ktor:ktor-client-core:3.6.0")
-            implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
-            implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
+            implementation(libs.ktor.clientCore)
+            implementation(libs.ktor.clientContentNegotiation)
+            implementation(libs.ktor.serializationKotlinxJson)
+            implementation(libs.qrose)
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
-            implementation("io.ktor:ktor-client-js:3.6.0")
+            implementation(libs.ktor.clientJs)
         }
         wasmJsMain.dependencies {
-            implementation("io.ktor:ktor-client-js:3.6.0")
+            implementation(libs.ktor.clientJs)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
