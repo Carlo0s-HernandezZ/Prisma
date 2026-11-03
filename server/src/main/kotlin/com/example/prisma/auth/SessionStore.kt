@@ -12,12 +12,16 @@ import java.util.concurrent.ConcurrentHashMap
  *   admite como máximo [maxCodeAttempts] intentos de código 2FA.
  * - Token de acceso (después del 2FA): caduca en [sessionTtlMillis].
  *
+ * Cada sesión recuerda cuándo se verificó el código 2FA ([SessionInfo.twoFactorAt]) y nunca
+ * dura más de [twoFactorWindowMillis] desde ese momento, aunque provenga de un login biométrico.
+ *
  * Los tokens son 256 bits aleatorios (no adivinables). Al reiniciar el servidor
  * todas las sesiones se pierden y los usuarios deben volver a iniciar sesión.
  */
 class SessionStore(
     private val pendingTtlMillis: Long = 5 * 60_000L,
     private val sessionTtlMillis: Long = 12 * 60 * 60_000L,
+    val twoFactorWindowMillis: Long = 24 * 60 * 60_000L,
     private val maxCodeAttempts: Int = 5,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -25,7 +29,7 @@ class SessionStore(
         var attempts = 0
     }
 
-    private class Session(val userId: UUID, val expiresAt: Long)
+    private class Session(val userId: UUID, val expiresAt: Long, val twoFactorAt: Long)
 
     private val pending = ConcurrentHashMap<String, Pending>()
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -71,26 +75,40 @@ class SessionStore(
         pending.remove(token)
     }
 
-    fun createSession(userId: UUID): String {
+    /**
+     * @param twoFactorAt momento (epoch ms) del último código 2FA válido. Para un login con 2FA es
+     * "ahora"; para un login biométrico es el último 2FA registrado para ese dispositivo.
+     */
+    fun createSession(userId: UUID, twoFactorAt: Long = clock()): String {
         purgeExpired()
         val token = newToken()
-        sessions[token] = Session(userId, clock() + sessionTtlMillis)
+        val expiresAt = minOf(clock() + sessionTtlMillis, twoFactorAt + twoFactorWindowMillis)
+        sessions[token] = Session(userId, expiresAt, twoFactorAt)
         return token
     }
 
-    fun sessionUser(token: String): UUID? {
+    fun sessionInfo(token: String): SessionInfo? {
         val s = sessions[token] ?: return null
         if (s.expiresAt <= clock()) {
             sessions.remove(token)
             return null
         }
-        return s.userId
+        return SessionInfo(s.userId, s.twoFactorAt)
     }
+
+    fun sessionUser(token: String): UUID? = sessionInfo(token)?.userId
+
+    /** true si un 2FA hecho en [twoFactorAt] sigue dentro de la ventana permitida. */
+    fun isTwoFactorFresh(twoFactorAt: Long): Boolean = clock() - twoFactorAt < twoFactorWindowMillis
+
+    fun now(): Long = clock()
 
     fun revoke(token: String) {
         sessions.remove(token)
     }
 }
+
+class SessionInfo(val userId: UUID, val twoFactorAt: Long)
 
 /**
  * Limita intentos fallidos de login por correo para frenar ataques de fuerza bruta.

@@ -10,6 +10,9 @@ object ApiRules {
     const val MIN_PASSWORD_LENGTH = 8
     const val TOTP_CODE_LENGTH = 6
     const val MAX_NAME_LENGTH = 100
+
+    /** Con acceso biométrico, el código de Google Authenticator se pide de nuevo cada estas horas. */
+    const val TWO_FACTOR_WINDOW_HOURS = 24
 }
 
 /** Códigos de error estables que el cliente puede interpretar sin depender del texto. */
@@ -23,6 +26,10 @@ object ApiErrorCodes {
     const val WEAK_PASSWORD = "weak_password"
     const val TOO_MANY_ATTEMPTS = "too_many_attempts"
     const val NOT_FOUND = "not_found"
+    /** El acceso biométrico expiró: hay que volver a entrar con contraseña + código 2FA. */
+    const val TWO_FACTOR_REQUIRED = "two_factor_required"
+    /** El dispositivo ya no tiene acceso biométrico (desactivado o eliminado). */
+    const val BIOMETRIC_REVOKED = "biometric_revoked"
 }
 
 @Serializable
@@ -117,3 +124,24 @@ object IncomeRules {
     /** VARCHAR(100) en la columna ingresos.nombre. */
     const val MAX_NAME_LENGTH = 100
 }
+
+// ---------- Acceso biométrico ----------
+
+/** plataforma: "android" o "ios". Requiere sesión (Bearer) obtenida con 2FA. */
+@Serializable
+data class BiometricEnrollRequest(val plataforma: String)
+
+/**
+ * deviceId identifica el registro (no es secreto, sirve para renovar/desactivar).
+ * deviceToken es secreto: el teléfono lo guarda protegido por huella / Face ID.
+ */
+@Serializable
+data class BiometricEnrollResponse(val deviceId: String, val deviceToken: String)
+
+/** Login biométrico: responde Verify2faResponse si el último 2FA fue hace menos de 24 h. */
+@Serializable
+data class BiometricLoginRequest(val deviceToken: String)
+
+/** Para renovar la ventana de 24 h tras un login con 2FA, o para desactivar el acceso. */
+@Serializable
+data class BiometricDeviceRequest(val deviceId: String)

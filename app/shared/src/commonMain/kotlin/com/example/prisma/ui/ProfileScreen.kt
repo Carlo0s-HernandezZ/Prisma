@@ -21,28 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.prisma.components.BottomNavBarReservedSpace
 import com.example.prisma.components.SoftCard
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Fingerprint
+import com.example.prisma.biometric.BiometricController
 import com.example.prisma.profile.ProfileViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-private fun formatEpochMillisToDateString(millis: Long): String {
-    val totalSeconds = millis / 1000
-    val days = (totalSeconds / 86400).toInt()
-    var L = days + 68569 + 2440588
-    val n = (4 * L) / 146097
-    L = L - (146097 * n + 3) / 4
-    val i = (4000 * (L + 1)) / 1464691
-    L = L - (1461 * i) / 4 + 31
-    val j = (80 * L) / 2447
-    val day = L - (2447 * j) / 80
-    L = j / 11
-    val month = j + 2 - 12 * L
-    val year = 100 * (n - 49) + i + L
-
-    val y = year.toString().padStart(4, '0')
-    val m = month.toString().padStart(2, '0')
-    val d = day.toString().padStart(2, '0')
-    return "$y-$m-$d"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,11 +34,14 @@ fun ProfileScreen(
     userEmail: String,
     viewModel: ProfileViewModel,
     onLogout: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** null cuando el dispositivo no tiene biometría (p. ej. en la web). */
+    biometric: BiometricSetting? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
+    // Solo se pueden elegir fechas de hoy hacia atrás (el servidor rechaza fechas futuras).
+    val datePickerState = rememberDatePickerState(selectableDates = PastOrTodayDates)
 
     if (state.confirmDelete) {
         AlertDialog(
@@ -82,7 +69,7 @@ fun ProfileScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            viewModel.onFechaChange(formatEpochMillisToDateString(millis))
+                            viewModel.onFechaChange(epochMillisToIsoDate(millis))
                         }
                         showDatePicker = false
                     }
@@ -219,6 +206,8 @@ fun ProfileScreen(
                     }
                 }
 
+                biometric?.let { BiometricSettingCard(it) }
+
                 // Logout Button
                 SoftCard(Modifier.fillMaxWidth()) {
                     Box(
@@ -240,4 +229,58 @@ fun ProfileScreen(
             }
         }
     }
+}
+
+/** Estado del interruptor "Entrar con huella / Face ID" en Perfil. */
+data class BiometricSetting(
+    val label: String,
+    val isFace: Boolean,
+    val enabled: Boolean,
+    val busy: Boolean,
+    val onToggle: (Boolean) -> Unit,
+)
+
+@Composable
+private fun BiometricSettingCard(setting: BiometricSetting) {
+    SoftCard(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = if (setting.isFace) Icons.Filled.Face else Icons.Filled.Fingerprint,
+                contentDescription = null,
+                tint = PrismaPalette.NaranjaPrisma,
+                modifier = Modifier.size(28.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Entrar con ${setting.label}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = Prisma.colors.onSurface,
+                )
+                Text(
+                    BiometricController.windowExplanation,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Prisma.colors.onSurface.copy(alpha = 0.7f),
+                )
+            }
+            if (setting.busy) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = PrismaPalette.NaranjaPrisma)
+            } else {
+                Switch(
+                    checked = setting.enabled,
+                    onCheckedChange = setting.onToggle,
+                    colors = SwitchDefaults.colors(checkedTrackColor = PrismaPalette.NaranjaPrisma),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private object PastOrTodayDates : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean = epochMillisToIsoDate(utcTimeMillis) <= todayIsoDate()
+    override fun isSelectableYear(year: Int): Boolean = year <= todayIsoDate().take(4).toInt()
 }

@@ -28,6 +28,13 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/reports/latest").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/incomes").status)
         assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
+        for (path in listOf("enroll", "renew", "revoke")) {
+            val r = client.post("/api/v1/auth/biometric/$path") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"plataforma":"android","deviceId":"00000000-0000-0000-0000-000000000000"}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, r.status, "biometric/$path sin token")
+        }
         val forged = client.get("/api/v1/reports/latest") {
             header(HttpHeaders.Authorization, "Bearer prisma_access_token_123")
         }

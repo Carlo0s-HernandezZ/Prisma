@@ -60,6 +60,8 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
             implementation(libs.ktor.clientCio)
+            implementation(libs.androidx.biometric)
+            implementation(libs.androidx.fragment)
         }
         commonMain.dependencies {
             api(project(":core"))

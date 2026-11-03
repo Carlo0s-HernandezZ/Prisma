@@ -72,7 +72,17 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.prisma.api.ApiRules
 import com.example.prisma.api.RegisterResponse
+import com.example.prisma.api.Verify2faResponse
+import com.example.prisma.biometric.BiometricController
+import com.example.prisma.biometric.BiometricKind
+import com.example.prisma.biometric.BiometricUnlockResult
+import kotlinx.coroutines.launch
 import com.example.prisma.getPlatform
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import com.example.prisma.auth.KtorAuthRepository
@@ -90,10 +100,47 @@ fun LoginScreen(
     onLoginSuccess: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
     onForgotPassword: () -> Unit = {},
+    /** Login con huella / Face ID (sin 2FA, dentro de la ventana de 24 h). */
+    onBiometricLogin: (Verify2faResponse) -> Unit = {},
+    biometric: BiometricController? = null,
+    /** Al abrir la app, mostrar directamente el diálogo de huella / Face ID. */
+    autoPromptBiometric: Boolean = false,
+    onAutoPromptConsumed: () -> Unit = {},
     viewModel: LoginViewModel = viewModel { LoginViewModel(KtorAuthRepository()) },
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnSuccess by rememberUpdatedState(onLoginSuccess)
+    val currentOnBiometricLogin by rememberUpdatedState(onBiometricLogin)
+    val scope = rememberCoroutineScope()
+    var biometricBusy by remember { mutableStateOf(false) }
+    val biometricAvailable = biometric != null && biometric.isSupported && biometric.enrolledEmail != null
+
+    fun unlockWithBiometrics() {
+        val controller = biometric ?: return
+        if (biometricBusy) return
+        biometricBusy = true
+        scope.launch {
+            when (val result = controller.unlock()) {
+                is BiometricUnlockResult.Success -> currentOnBiometricLogin(result.session)
+                is BiometricUnlockResult.TwoFactorRequired -> viewModel.showNotice(
+                    "Pasaron ${ApiRules.TWO_FACTOR_WINDOW_HOURS} horas desde tu último código de verificación. " +
+                        "Entra con tu contraseña y el código de Google Authenticator.",
+                    email = result.email,
+                )
+                is BiometricUnlockResult.Disabled -> viewModel.showNotice(result.message)
+                is BiometricUnlockResult.Error -> viewModel.showNotice(result.message)
+                BiometricUnlockResult.Cancelled -> Unit
+            }
+            biometricBusy = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (autoPromptBiometric) {
+            onAutoPromptConsumed()
+            if (biometricAvailable) unlockWithBiometrics()
+        }
+    }
     LaunchedEffect(state.session) {
         state.session?.let { session ->
             viewModel.onSessionConsumed()
@@ -154,6 +201,10 @@ fun LoginScreen(
                                 onSubmit = viewModel::submit,
                                 onToggleRegister = viewModel::toggleRegisterMode,
                                 onForgotPassword = onForgotPassword,
+                                biometricLabel = if (biometricAvailable) biometric?.label else null,
+                                biometricIsFace = biometric?.kind == BiometricKind.FaceId,
+                                biometricBusy = biometricBusy,
+                                onBiometric = ::unlockWithBiometrics,
                             )
                             LoginStep.TwoFactor -> TwoFactorForm(
                                 state = state,
@@ -275,6 +326,10 @@ private fun CredentialsForm(
     onSubmit: () -> Unit,
     onToggleRegister: () -> Unit,
     onForgotPassword: () -> Unit,
+    biometricLabel: String? = null,
+    biometricIsFace: Boolean = false,
+    biometricBusy: Boolean = false,
+    onBiometric: () -> Unit = {},
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Header(
@@ -315,6 +370,15 @@ private fun CredentialsForm(
             onClick = onSubmit,
             loading = state.isLoading
         )
+
+        if (!state.isRegistering && biometricLabel != null) {
+            BiometricPillButton(
+                text = "Entrar con $biometricLabel",
+                isFace = biometricIsFace,
+                loading = biometricBusy,
+                onClick = onBiometric,
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -474,6 +538,38 @@ private fun PrimaryPillButton(text: String, onClick: () -> Unit, loading: Boolea
             CircularProgressIndicator(Modifier.size(22.dp), color = InkOnPanel, strokeWidth = 2.5.dp)
         } else {
             Text(text, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = InkOnPanel)
+        }
+    }
+}
+
+@Composable
+private fun BiometricPillButton(text: String, isFace: Boolean, loading: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(shape)
+            .border(2.dp, InkOnPanel, shape)
+            .clickable(enabled = !loading, role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = InkOnPanel, strokeWidth = 2.5.dp)
+        } else {
+            Icon(
+                imageVector = if (isFace) Icons.Filled.Face else Icons.Filled.Fingerprint,
+                contentDescription = null,
+                tint = InkOnPanel,
+                modifier = Modifier.size(24.dp),
+            )
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = InkOnPanel,
+                modifier = Modifier.padding(start = 10.dp),
+            )
         }
     }
 }

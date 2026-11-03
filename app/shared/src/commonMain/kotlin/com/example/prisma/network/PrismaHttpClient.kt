@@ -27,6 +27,10 @@ internal val prismaHttpClient: HttpClient by lazy {
 
 internal fun HttpRequestBuilder.withToken(token: String) = bearerAuth(token)
 
+/** Mensaje legible que devuelve el servidor en el cuerpo, si lo hay. */
+internal suspend fun HttpResponse.apiErrorMessage(): String? =
+    runCatching { body<ApiError>().message }.getOrNull()
+
 /** Código de error que devuelve el servidor en el cuerpo, si lo hay. */
 internal suspend fun HttpResponse.apiErrorCode(): String? =
     runCatching { body<ApiError>().code }.getOrNull()

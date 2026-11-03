@@ -67,6 +67,19 @@ class SessionStoreTest {
     }
 
     @Test
+    fun sessionNeverOutlivesTwoFactorWindow() {
+        val windowStore = SessionStore(sessionTtlMillis = 10_000, twoFactorWindowMillis = 5_000, clock = { now })
+        // Sesión biométrica cuyo 2FA fue hace 4 s: solo le queda 1 s de vida, no 10 s.
+        val t = windowStore.createSession(user, twoFactorAt = now - 4_000)
+        assertEquals(user, windowStore.sessionUser(t))
+        assertEquals(now - 4_000, windowStore.sessionInfo(t)!!.twoFactorAt)
+        now += 1_001
+        assertNull(windowStore.sessionUser(t))
+        assertTrue(windowStore.isTwoFactorFresh(now - 4_999))
+        assertFalse(windowStore.isTwoFactorFresh(now - 5_000))
+    }
+
+    @Test
     fun sessionsAreRandomExpireAndRevoke() {
         val a = store.createSession(user)
         val b = store.createSession(user)
@@ -131,5 +144,12 @@ class IncomeNameTest {
         assertNull(parseIncomeName("   "))
         assertNull(parseIncomeName("x".repeat(101)))
         assertEquals("x".repeat(100), parseIncomeName("x".repeat(100)))
+    }
+}
+
+class BiometricTokenHashTest {
+    @Test
+    fun sha256IsStableHex() {
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", com.example.prisma.routes.sha256Hex("abc"))
     }
 }

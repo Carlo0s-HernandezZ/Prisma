@@ -94,3 +94,18 @@ object TransaccionesTable : Table("transacciones") {
 
     override val primaryKey = PrimaryKey(id)
 }
+
+/** Dispositivos con acceso biométrico (migración 002_dispositivos_biometricos.sql). */
+object DispositivosBiometricosTable : Table("dispositivos_biometricos") {
+    val id = uuid("id")
+    val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
+    /** SHA-256 (hex) del token del dispositivo; el token en claro solo existe en el teléfono. */
+    val tokenHash = varchar("token_hash", 64).uniqueIndex()
+    val plataforma = varchar("plataforma", 20)
+    /** Hora del último código 2FA válido: el acceso biométrico vale 24 h desde aquí. */
+    val ultimo2fa = timestamp("ultimo_2fa")
+    val ultimoUso = timestamp("ultimo_uso").nullable()
+    val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}

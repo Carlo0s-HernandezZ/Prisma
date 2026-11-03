@@ -41,30 +41,138 @@ import com.example.prisma.ui.AppTheme
 import com.example.prisma.ui.LoginScreen
 import com.example.prisma.ui.ProfileScreen
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.example.prisma.biometric.BiometricController
+import com.example.prisma.biometric.BiometricEnableResult
+import com.example.prisma.biometric.BiometricKind
+import com.example.prisma.biometric.rememberBiometricController
+import com.example.prisma.ui.BiometricSetting
 
-private data class UserSession(val token: String, val email: String)
+/** [viaBiometrics]: true si se entró con huella / Face ID (sin escribir contraseña ni código). */
+private data class UserSession(val token: String, val email: String, val viaBiometrics: Boolean = false)
 
 @Composable
 fun App() {
     AppTheme {
         var session by remember { mutableStateOf<UserSession?>(null) }
         val authRepository = remember { KtorAuthRepository() }
+        val biometric = rememberBiometricController()
         val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+
+        // Al abrir la app (no tras cerrar sesión) se muestra directamente el diálogo de huella / Face ID.
+        var autoPromptBiometric by remember { mutableStateOf(true) }
+        var offerBiometric by remember { mutableStateOf(false) }
+        var biometricBusy by remember { mutableStateOf(false) }
 
         val current = session
-        if (current == null) {
-            LoginScreen(
-                onLoginSuccess = { token, email -> session = UserSession(token, email) }
-            )
-        } else {
-            HomeScreen(
-                token = current.token,
-                userEmail = current.email,
-                onLogout = {
-                    session = null
-                    scope.launch { authRepository.logout(current.token) }
+
+        // Tras un login con contraseña + 2FA: renovar la ventana de 24 h o preguntar si se quiere activar.
+        LaunchedEffect(current) {
+            offerBiometric = current != null && !current.viaBiometrics &&
+                biometric.onTwoFactorLogin(current.token, current.email)
+        }
+
+        fun enableBiometrics(s: UserSession) {
+            biometricBusy = true
+            scope.launch {
+                val message = when (val r = biometric.enable(s.token, s.email)) {
+                    BiometricEnableResult.Enabled -> "Listo. La próxima vez entra con tu ${biometric.label}."
+                    BiometricEnableResult.Cancelled -> "No se activó el acceso con ${biometric.label}."
+                    is BiometricEnableResult.Error -> r.message
                 }
-            )
+                biometricBusy = false
+                snackbar.showSnackbar(message)
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+            if (current == null) {
+                LoginScreen(
+                    onLoginSuccess = { token, email -> session = UserSession(token, email) },
+                    onBiometricLogin = { s -> session = UserSession(s.accessToken, s.email, viaBiometrics = true) },
+                    biometric = biometric,
+                    autoPromptBiometric = autoPromptBiometric,
+                    onAutoPromptConsumed = { autoPromptBiometric = false },
+                )
+            } else {
+                val biometricSetting = if (biometric.isSupported) {
+                    BiometricSetting(
+                        label = biometric.label,
+                        isFace = biometric.kind == BiometricKind.FaceId,
+                        enabled = biometric.enrolledEmail.equals(current.email, ignoreCase = true),
+                        busy = biometricBusy,
+                        onToggle = { enable ->
+                            if (enable) {
+                                enableBiometrics(current)
+                            } else {
+                                biometricBusy = true
+                                scope.launch {
+                                    biometric.disable(current.token)
+                                    biometricBusy = false
+                                    snackbar.showSnackbar("Acceso con ${biometric.label} desactivado.")
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    null
+                }
+
+                HomeScreen(
+                    token = current.token,
+                    userEmail = current.email,
+                    biometricSetting = biometricSetting,
+                    onLogout = {
+                        session = null
+                        offerBiometric = false
+                        scope.launch { authRepository.logout(current.token) }
+                    }
+                )
+
+                if (offerBiometric) {
+                    AlertDialog(
+                        onDismissRequest = {},
+                        icon = {
+                            Icon(
+                                if (biometric.kind == BiometricKind.FaceId) Icons.Filled.Face else Icons.Filled.Fingerprint,
+                                contentDescription = null,
+                            )
+                        },
+                        title = { Text("¿Entrar con tu ${biometric.label}?") },
+                        text = {
+                            Text(
+                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" +
+                                    BiometricController.windowExplanation
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                offerBiometric = false
+                                enableBiometrics(current)
+                            }) { Text("Activar") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                offerBiometric = false
+                                biometric.decline(current.email)
+                                scope.launch { snackbar.showSnackbar("Puedes activarlo cuando quieras desde tu Perfil.") }
+                            }) { Text("Ahora no") }
+                        },
+                    )
+                }
+            }
+
+            SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(16.dp))
         }
     }
 }
@@ -73,7 +181,8 @@ fun App() {
 fun HomeScreen(
     token: String,
     userEmail: String,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    biometricSetting: BiometricSetting? = null,
 ) {
     var selectedDestination by remember { mutableStateOf(NavDestination.Home) }
     // La clave incluye el token: cada sesión obtiene ViewModels nuevos (sin datos de la sesión anterior).
@@ -122,6 +231,7 @@ fun HomeScreen(
                         userEmail = userEmail,
                         viewModel = profileViewModel,
                         onLogout = onLogout,
+                        biometric = biometricSetting,
                     )
                 }
                 NavDestination.Cards -> {

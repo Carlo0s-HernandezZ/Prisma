@@ -2,6 +2,7 @@ package com.example.prisma.profile
 
 import com.example.prisma.api.PersonalData
 import com.example.prisma.defaultBaseUrl
+import com.example.prisma.network.apiErrorMessage
 import com.example.prisma.network.prismaHttpClient
 import com.example.prisma.network.withToken
 import io.ktor.client.HttpClient
@@ -19,7 +20,8 @@ import kotlin.coroutines.cancellation.CancellationException
 
 enum class ProfileError { Unauthorized, NotFound, Invalid, Network, Unknown }
 
-class ProfileException(val error: ProfileError) : Exception(error.name)
+/** [serverMessage]: explicación del servidor (p. ej. "La fecha de nacimiento no puede ser futura."). */
+class ProfileException(val error: ProfileError, val serverMessage: String? = null) : Exception(error.name)
 
 interface ProfileRepository {
     /** Devuelve null si el usuario todavía no tiene datos personales. */
@@ -70,7 +72,8 @@ class KtorProfileRepository(
                         HttpStatusCode.NotFound -> ProfileError.NotFound
                         HttpStatusCode.BadRequest -> ProfileError.Invalid
                         else -> ProfileError.Unknown
-                    }
+                    },
+                    serverMessage = response.apiErrorMessage(),
                 )
             )
         }

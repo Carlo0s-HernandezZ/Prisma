@@ -4,6 +4,7 @@ import com.example.prisma.auth.LoginRateLimiter
 import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory
 import com.example.prisma.routes.authRoutes
+import com.example.prisma.routes.biometricRoutes
 import com.example.prisma.routes.dashboardRoutes
 import com.example.prisma.routes.incomeRoutes
 import com.example.prisma.routes.profileRoutes
@@ -65,6 +66,7 @@ fun Application.module(
             call.respondText("Prisma API")
         }
         authRoutes(sessions, loginLimiter)
+        biometricRoutes(sessions)
         profileRoutes(sessions)
         dashboardRoutes(sessions)
         incomeRoutes(sessions)

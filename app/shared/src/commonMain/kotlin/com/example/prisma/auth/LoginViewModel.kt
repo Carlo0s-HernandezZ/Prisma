@@ -66,6 +66,26 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         _state.value = LoginUiState()
     }
 
+    /**
+     * Muestra un aviso que viene de fuera del formulario (p. ej. del acceso biométrico) y,
+     * si se indica, rellena el correo para que solo falte la contraseña.
+     */
+    fun showNotice(message: String, email: String? = null) {
+        tempToken = null
+        _state.update {
+            it.copy(
+                step = LoginStep.Credentials,
+                isRegistering = false,
+                registerResult = null,
+                email = email ?: it.email,
+                code = "",
+                isLoading = false,
+                errorMessage = message,
+                successMessage = null,
+            )
+        }
+    }
+
     fun submit() = when (_state.value.step) {
         LoginStep.Credentials -> if (_state.value.isRegistering) register() else submitCredentials()
         LoginStep.TwoFactor -> submitCode()

@@ -2,6 +2,7 @@ package com.example.prisma.http
 
 import com.example.prisma.api.ApiError
 import com.example.prisma.api.ApiErrorCodes
+import com.example.prisma.auth.SessionInfo
 import com.example.prisma.auth.SessionStore
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -29,6 +30,15 @@ fun ApplicationCall.bearerToken(): String? {
     val header = request.headers[HttpHeaders.Authorization] ?: return null
     if (!header.startsWith("Bearer ", ignoreCase = true)) return null
     return header.substring("Bearer ".length).trim().ifEmpty { null }
+}
+
+/** Como [authenticatedUser], pero incluye la hora del 2FA de la sesión. */
+suspend fun ApplicationCall.authenticatedSession(sessions: SessionStore): SessionInfo? {
+    val info = bearerToken()?.let(sessions::sessionInfo)
+    if (info == null) {
+        respondError(HttpStatusCode.Unauthorized, ApiErrorCodes.UNAUTHORIZED, "Sesión inválida o expirada.")
+    }
+    return info
 }
 
 /** Devuelve el usuario dueño del token de acceso; si no hay sesión válida responde 401 y devuelve null. */

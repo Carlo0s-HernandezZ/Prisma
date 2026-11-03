@@ -3,6 +3,7 @@ package com.example.prisma.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.prisma.api.PersonalData
+import com.example.prisma.ui.todayIsoDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,6 +62,13 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
             _state.update { it.copy(message = "Por favor ingresa nombre y apellido.", isError = true) }
             return
         }
+        // Las fechas "yyyy-MM-dd" se comparan correctamente como texto.
+        if (s.fechaNacimiento.isNotBlank() && s.fechaNacimiento > todayIsoDate()) {
+            _state.update {
+                it.copy(message = "La fecha de nacimiento no puede ser futura. Toca el campo de fecha y elige la correcta.", isError = true)
+            }
+            return
+        }
         _state.update { it.copy(isLoading = true, message = null) }
         viewModelScope.launch {
             val data = PersonalData(s.nombre.trim(), s.apellido.trim(), s.fechaNacimiento.ifBlank { null })
@@ -102,9 +110,10 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
                 message = when (error) {
                     ProfileError.Network -> "Sin conexión con el servidor. Inténtalo de nuevo."
                     ProfileError.NotFound -> "No se encontraron datos para eliminar."
-                    ProfileError.Invalid -> "Revisa los datos: nombre, apellido y fecha deben ser válidos."
+                    ProfileError.Invalid -> (e as? ProfileException)?.serverMessage
+                        ?: "Revisa los datos: nombre, apellido y fecha deben ser válidos."
                     ProfileError.Unauthorized -> "Tu sesión expiró."
-                    ProfileError.Unknown -> fallback
+                    ProfileError.Unknown -> "$fallback El servidor respondió con un error; si continúa, verifica que esté actualizado y reiniciado."
                 },
             )
         }
