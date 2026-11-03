@@ -1,31 +1,40 @@
 package com.example.prisma.auth
 
+import com.example.prisma.api.ApiErrorCodes
+import com.example.prisma.api.LoginRequest
+import com.example.prisma.api.LoginResponse
+import com.example.prisma.api.RegisterRequest
+import com.example.prisma.api.RegisterResponse
+import com.example.prisma.api.Verify2faRequest
+import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.defaultBaseUrl
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import com.example.prisma.network.apiErrorCode
+import com.example.prisma.network.prismaHttpClient
+import com.example.prisma.network.withToken
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
-import kotlinx.serialization.Serializable
+import kotlin.coroutines.cancellation.CancellationException
 
-enum class AuthError { InvalidCredentials, InvalidCode, SessionExpired, Network, Unknown }
+enum class AuthError {
+    InvalidCredentials, InvalidCode, SessionExpired, EmailTaken, WeakPassword, TooManyAttempts, Network, Unknown
+}
 
 class AuthException(val error: AuthError) : Exception(error.name)
 
-@Serializable
-data class ApiRegisterResponse(
-    val message: String,
-    val secret2fa: String,
-    val qrCodeUrl: String,
-    val otpauthUrl: String
-)
-
 interface AuthRepository {
+    /** Devuelve el token temporal para el paso de 2FA. */
     suspend fun login(email: String, password: String): Result<String>
-    suspend fun verifyTwoFactor(tempToken: String, code: String): Result<String>
-    suspend fun register(email: String, password: String): Result<ApiRegisterResponse>
+    suspend fun verifyTwoFactor(tempToken: String, code: String): Result<Verify2faResponse>
+    suspend fun register(email: String, password: String): Result<RegisterResponse>
+    suspend fun logout(accessToken: String)
 }
 
 class FakeAuthRepository : AuthRepository {
@@ -38,95 +47,91 @@ class FakeAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun verifyTwoFactor(tempToken: String, code: String): Result<String> {
+    override suspend fun verifyTwoFactor(tempToken: String, code: String): Result<Verify2faResponse> {
         delay(700)
         return if (code == "123456") {
-            Result.success("demo_access_token")
+            Result.success(Verify2faResponse("demo_access_token", "demo@prisma.com"))
         } else {
             Result.failure(AuthException(AuthError.InvalidCode))
         }
     }
 
-    override suspend fun register(email: String, password: String): Result<ApiRegisterResponse> {
+    override suspend fun register(email: String, password: String): Result<RegisterResponse> {
         delay(700)
-        return if (email.contains('@') && password.isNotBlank()) {
-            Result.success(ApiRegisterResponse("Success", "JBSWY3DPEHPK3PXP", "", ""))
-        } else {
-            Result.failure(Exception("Registration failed"))
-        }
+        return Result.success(RegisterResponse("Success", "DEMODEMODEMODEMODEMODEMODEMODEMO", ""))
     }
+
+    override suspend fun logout(accessToken: String) = Unit
 }
 
-@Serializable
-data class ApiLoginRequest(val email: String, val password: String)
+class KtorAuthRepository(
+    private val baseUrl: String = defaultBaseUrl(),
+    private val client: HttpClient = prismaHttpClient,
+) : AuthRepository {
 
-@Serializable
-data class ApiLoginResponse(val tempToken: String)
+    override suspend fun login(email: String, password: String): Result<String> =
+        request(default401 = AuthError.InvalidCredentials, send = {
+            client.post("$baseUrl/api/v1/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest(email, password))
+            }
+        }) { it.body<LoginResponse>().tempToken }
 
-@Serializable
-data class ApiVerify2faRequest(val tempToken: String, val code: String)
+    override suspend fun verifyTwoFactor(tempToken: String, code: String): Result<Verify2faResponse> =
+        request(default401 = AuthError.InvalidCode, send = {
+            client.post("$baseUrl/api/v1/auth/verify-2fa") {
+                contentType(ContentType.Application.Json)
+                setBody(Verify2faRequest(tempToken, code))
+            }
+        }) { it.body<Verify2faResponse>() }
 
-@Serializable
-data class ApiVerify2faResponse(val accessToken: String)
+    override suspend fun register(email: String, password: String): Result<RegisterResponse> =
+        request(default401 = AuthError.Unknown, send = {
+            client.post("$baseUrl/api/v1/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterRequest(email, password))
+            }
+        }) { it.body<RegisterResponse>() }
 
-class KtorAuthRepository(private val baseUrl: String = defaultBaseUrl()) : AuthRepository {
-    private val client = HttpClient {
-        install(ContentNegotiation) {
-            json()
+    override suspend fun logout(accessToken: String) {
+        // Mejor esfuerzo: aunque falle la red, la sesión local se cierra igual.
+        try {
+            client.post("$baseUrl/api/v1/auth/logout") { withToken(accessToken) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
         }
     }
 
-    override suspend fun login(email: String, password: String): Result<String> {
-        return try {
-            val response = client.post("$baseUrl/api/v1/auth/login") {
-                contentType(ContentType.Application.Json)
-                setBody(ApiLoginRequest(email, password))
-            }
-            if (response.status.isSuccess()) {
-                val body: ApiLoginResponse = response.body()
-                Result.success(body.tempToken)
-            } else {
-                Result.failure(AuthException(AuthError.InvalidCredentials))
-            }
-        } catch (e: Exception) {
-            println("KTOR LOGIN ERROR: ${e.message} - ${e::class.simpleName}")
-            Result.failure(AuthException(AuthError.Network))
+    private suspend fun <T> request(
+        default401: AuthError,
+        send: suspend () -> HttpResponse,
+        parse: suspend (HttpResponse) -> T,
+    ): Result<T> = try {
+        val response = send()
+        if (response.status.isSuccess()) {
+            Result.success(parse(response))
+        } else {
+            Result.failure(AuthException(errorFor(response, default401)))
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        println("PRISMA auth network error: ${e::class.simpleName}")
+        Result.failure(AuthException(AuthError.Network))
     }
 
-    override suspend fun verifyTwoFactor(tempToken: String, code: String): Result<String> {
-        return try {
-            val response = client.post("$baseUrl/api/v1/auth/verify-2fa") {
-                contentType(ContentType.Application.Json)
-                setBody(ApiVerify2faRequest(tempToken, code))
-            }
-            if (response.status.isSuccess()) {
-                val body: ApiVerify2faResponse = response.body()
-                Result.success(body.accessToken)
-            } else {
-                Result.failure(AuthException(AuthError.InvalidCode))
-            }
-        } catch (e: Exception) {
-            println("KTOR 2FA ERROR: ${e.message} - ${e::class.simpleName}")
-            Result.failure(AuthException(AuthError.Network))
-        }
-    }
-
-    override suspend fun register(email: String, password: String): Result<ApiRegisterResponse> {
-        return try {
-            val response = client.post("$baseUrl/api/v1/auth/register") {
-                contentType(ContentType.Application.Json)
-                setBody(ApiLoginRequest(email, password))
-            }
-            if (response.status.isSuccess()) {
-                val body: ApiRegisterResponse = response.body()
-                Result.success(body)
-            } else {
-                Result.failure(Exception("Registration failed"))
-            }
-        } catch (e: Exception) {
-            println("KTOR REGISTER ERROR: ${e.message} - ${e::class.simpleName}")
-            Result.failure(Exception("Network error: ${e.message}"))
+    private suspend fun errorFor(response: HttpResponse, default401: AuthError): AuthError {
+        val code = response.apiErrorCode()
+        return when {
+            code == ApiErrorCodes.WEAK_PASSWORD -> AuthError.WeakPassword
+            code == ApiErrorCodes.EMAIL_TAKEN || response.status == HttpStatusCode.Conflict -> AuthError.EmailTaken
+            code == ApiErrorCodes.SESSION_EXPIRED || response.status == HttpStatusCode.Gone -> AuthError.SessionExpired
+            code == ApiErrorCodes.TOO_MANY_ATTEMPTS || response.status == HttpStatusCode.TooManyRequests -> AuthError.TooManyAttempts
+            code == ApiErrorCodes.INVALID_CODE -> AuthError.InvalidCode
+            code == ApiErrorCodes.INVALID_CREDENTIALS -> AuthError.InvalidCredentials
+            response.status == HttpStatusCode.Unauthorized -> default401
+            else -> AuthError.Unknown
         }
     }
 }

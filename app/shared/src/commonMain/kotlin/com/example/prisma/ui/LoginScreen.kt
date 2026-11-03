@@ -65,8 +65,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.prisma.auth.ApiRegisterResponse
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.prisma.api.ApiRules
+import com.example.prisma.api.RegisterResponse
+import com.example.prisma.api.Verify2faResponse
+import com.example.prisma.biometric.BiometricController
+import com.example.prisma.biometric.BiometricKind
+import com.example.prisma.biometric.BiometricUnlockResult
+import kotlinx.coroutines.launch
+import com.example.prisma.getPlatform
+import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import com.example.prisma.auth.KtorAuthRepository
 import com.example.prisma.auth.LoginStep
 import com.example.prisma.auth.LoginUiState
@@ -82,14 +100,52 @@ fun LoginScreen(
     onLoginSuccess: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
     onForgotPassword: () -> Unit = {},
+    /** Login con huella / Face ID (sin 2FA, dentro de la ventana de 24 h). */
+    onBiometricLogin: (Verify2faResponse) -> Unit = {},
+    biometric: BiometricController? = null,
+    /** Al abrir la app, mostrar directamente el diálogo de huella / Face ID. */
+    autoPromptBiometric: Boolean = false,
+    onAutoPromptConsumed: () -> Unit = {},
     viewModel: LoginViewModel = viewModel { LoginViewModel(KtorAuthRepository()) },
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnSuccess by rememberUpdatedState(onLoginSuccess)
-    LaunchedEffect(state.accessToken) { 
-        state.accessToken?.let { token ->
-            currentOnSuccess(token, state.email) 
-        } 
+    val currentOnBiometricLogin by rememberUpdatedState(onBiometricLogin)
+    val scope = rememberCoroutineScope()
+    var biometricBusy by remember { mutableStateOf(false) }
+    val biometricAvailable = biometric != null && biometric.isSupported && biometric.enrolledEmail != null
+
+    fun unlockWithBiometrics() {
+        val controller = biometric ?: return
+        if (biometricBusy) return
+        biometricBusy = true
+        scope.launch {
+            when (val result = controller.unlock()) {
+                is BiometricUnlockResult.Success -> currentOnBiometricLogin(result.session)
+                is BiometricUnlockResult.TwoFactorRequired -> viewModel.showNotice(
+                    "Pasaron ${ApiRules.TWO_FACTOR_WINDOW_HOURS} horas desde tu último código de verificación. " +
+                        "Entra con tu contraseña y el código de Google Authenticator.",
+                    email = result.email,
+                )
+                is BiometricUnlockResult.Disabled -> viewModel.showNotice(result.message)
+                is BiometricUnlockResult.Error -> viewModel.showNotice(result.message)
+                BiometricUnlockResult.Cancelled -> Unit
+            }
+            biometricBusy = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (autoPromptBiometric) {
+            onAutoPromptConsumed()
+            if (biometricAvailable) unlockWithBiometrics()
+        }
+    }
+    LaunchedEffect(state.session) {
+        state.session?.let { session ->
+            viewModel.onSessionConsumed()
+            currentOnSuccess(session.accessToken, session.email)
+        }
     }
 
     val colors = Prisma.colors
@@ -145,6 +201,10 @@ fun LoginScreen(
                                 onSubmit = viewModel::submit,
                                 onToggleRegister = viewModel::toggleRegisterMode,
                                 onForgotPassword = onForgotPassword,
+                                biometricLabel = if (biometricAvailable) biometric?.label else null,
+                                biometricIsFace = biometric?.kind == BiometricKind.FaceId,
+                                biometricBusy = biometricBusy,
+                                onBiometric = ::unlockWithBiometrics,
                             )
                             LoginStep.TwoFactor -> TwoFactorForm(
                                 state = state,
@@ -169,28 +229,91 @@ fun LoginScreen(
 
 @Composable
 private fun RegisterSuccessForm(
-    result: ApiRegisterResponse,
+    result: RegisterResponse,
     onDismiss: () -> Unit
 ) {
+    val isMobile = remember { getPlatform().isMobile }
+    val uriHandler = LocalUriHandler.current
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    var openFailed by remember { mutableStateOf(false) }
+    val linkStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Header("¡Cuenta Creada!", "Configura Google Authenticator con esta clave secreta:")
+        Header(
+            "¡Cuenta Creada!",
+            if (isMobile) "Agrega tu cuenta a Google Authenticator:" else "Escanea este código con Google Authenticator:",
+        )
+
+        // El QR se genera dentro de la app: la clave nunca sale del dispositivo.
+        if (result.otpauthUrl.isNotBlank()) {
+            val qrPainter = rememberQrCodePainter(result.otpauthUrl) { }
+            Box(
+                modifier = Modifier
+                    .size(if (isMobile) 180.dp else 220.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = qrPainter,
+                    contentDescription = "Código QR para configurar Google Authenticator",
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            if (isMobile) {
+                // En el celular no puedes escanear tu propia pantalla: se abre Authenticator directamente.
+                PrimaryPillButton(
+                    "Abrir en Authenticator",
+                    onClick = { openFailed = runCatching { uriHandler.openUri(result.otpauthUrl) }.isFailure },
+                    loading = false,
+                )
+                if (openFailed) {
+                    ErrorBanner("No se encontró una app de autenticación. Instala Google Authenticator o usa la clave de abajo.")
+                }
+            }
+        }
+
+        Text(
+            text = "¿No puedes escanear? En Authenticator elige \"Ingresar clave de configuración\" y escribe:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkOnPanel,
+            textAlign = TextAlign.Center,
+        )
 
         PillField(
-            value = result.secret2fa,
+            value = result.secret2fa.chunked(4).joinToString(" "),
             onValueChange = {},
             placeholder = "",
             label = "Clave 2FA de Google Authenticator",
-            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         )
 
         Text(
-            text = "Copia esta clave de 16 caracteres y agrégala en la aplicación Google Authenticator de tu celular.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = if (copied) "¡Clave copiada!" else "Copiar clave",
+            style = linkStyle,
             color = InkOnPanel,
-            textAlign = TextAlign.Center
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(role = Role.Button) {
+                    clipboard.setText(AnnotatedString(result.secret2fa))
+                    copied = true
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         )
 
-        PrimaryPillButton("Ir a Iniciar Sesión", onClick = onDismiss, loading = false)
+        Text(
+            text = "Es única para tu cuenta: no la compartas.",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkOnPanel,
+            textAlign = TextAlign.Center,
+        )
+
+        PrimaryPillButton("Ya la agregué, iniciar sesión", onClick = onDismiss, loading = false)
     }
 }
 
@@ -203,6 +326,10 @@ private fun CredentialsForm(
     onSubmit: () -> Unit,
     onToggleRegister: () -> Unit,
     onForgotPassword: () -> Unit,
+    biometricLabel: String? = null,
+    biometricIsFace: Boolean = false,
+    biometricBusy: Boolean = false,
+    onBiometric: () -> Unit = {},
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Header(
@@ -243,6 +370,15 @@ private fun CredentialsForm(
             onClick = onSubmit,
             loading = state.isLoading
         )
+
+        if (!state.isRegistering && biometricLabel != null) {
+            BiometricPillButton(
+                text = "Entrar con $biometricLabel",
+                isFace = biometricIsFace,
+                loading = biometricBusy,
+                onClick = onBiometric,
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -402,6 +538,38 @@ private fun PrimaryPillButton(text: String, onClick: () -> Unit, loading: Boolea
             CircularProgressIndicator(Modifier.size(22.dp), color = InkOnPanel, strokeWidth = 2.5.dp)
         } else {
             Text(text, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = InkOnPanel)
+        }
+    }
+}
+
+@Composable
+private fun BiometricPillButton(text: String, isFace: Boolean, loading: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(shape)
+            .border(2.dp, InkOnPanel, shape)
+            .clickable(enabled = !loading, role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = InkOnPanel, strokeWidth = 2.5.dp)
+        } else {
+            Icon(
+                imageVector = if (isFace) Icons.Filled.Face else Icons.Filled.Fingerprint,
+                contentDescription = null,
+                tint = InkOnPanel,
+                modifier = Modifier.size(24.dp),
+            )
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = InkOnPanel,
+                modifier = Modifier.padding(start = 10.dp),
+            )
         }
     }
 }

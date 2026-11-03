@@ -14,6 +14,8 @@ dependencies {
     implementation(project(":app:shared"))
 
     implementation(libs.androidx.activity.compose)
+    // FragmentActivity: necesaria para mostrar el diálogo de huella (BiometricPrompt).
+    implementation(libs.androidx.fragment)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)

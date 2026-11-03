@@ -5,12 +5,18 @@ import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.slf4j.LoggerFactory
 
 object DatabaseFactory {
+    private val log = LoggerFactory.getLogger(DatabaseFactory::class.java)
+
     fun init() {
         val dbUrl = System.getenv("JDBC_DATABASE_URL") ?: "jdbc:postgresql://localhost:5432/prisma_db"
         val dbUser = System.getenv("DB_USER") ?: "postgres"
-        val dbPassword = System.getenv("DB_PASSWORD") ?: "postgres"
+        val dbPassword = System.getenv("DB_PASSWORD")
+            ?: "postgres".also {
+                log.warn("DB_PASSWORD no está definida: usando la contraseña por defecto de desarrollo. No uses esto en producción.")
+            }
 
         val config = HikariConfig().apply {
             driverClassName = "org.postgresql.Driver"
@@ -23,8 +29,7 @@ object DatabaseFactory {
             validate()
         }
 
-        val dataSource = HikariDataSource(config)
-        Database.connect(dataSource)
+        Database.connect(HikariDataSource(config))
     }
 
     suspend fun <T> dbQuery(block: () -> T): T =

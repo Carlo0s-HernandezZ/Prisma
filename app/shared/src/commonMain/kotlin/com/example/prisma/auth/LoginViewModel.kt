@@ -2,6 +2,9 @@ package com.example.prisma.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.prisma.api.ApiRules
+import com.example.prisma.api.RegisterResponse
+import com.example.prisma.api.Verify2faResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,8 +23,9 @@ data class LoginUiState(
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val isRegistering: Boolean = false,
-    val registerResult: ApiRegisterResponse? = null,
-    val accessToken: String? = null,
+    val registerResult: RegisterResponse? = null,
+    /** Sesión obtenida tras el 2FA; la pantalla la entrega a la app y llama a [LoginViewModel.onSessionConsumed]. */
+    val session: Verify2faResponse? = null,
 )
 
 class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
@@ -36,12 +40,12 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     fun onPasswordChange(value: String) = _state.update { it.copy(password = value, errorMessage = null, successMessage = null) }
 
     fun onCodeChange(value: String) =
-        _state.update { it.copy(code = value.filter(Char::isDigit).take(CODE_LENGTH), errorMessage = null) }
+        _state.update { it.copy(code = value.filter(Char::isDigit).take(ApiRules.TOTP_CODE_LENGTH), errorMessage = null) }
 
     fun togglePasswordVisibility() = _state.update { it.copy(passwordVisible = !it.passwordVisible) }
 
-    fun toggleRegisterMode() = _state.update { 
-        it.copy(isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials, registerResult = null) 
+    fun toggleRegisterMode() = _state.update {
+        it.copy(isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials, registerResult = null)
     }
 
     fun dismissRegisterResult() {
@@ -51,6 +55,35 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     fun backToCredentials() {
         tempToken = null
         _state.update { it.copy(step = LoginStep.Credentials, code = "", errorMessage = null, isLoading = false) }
+    }
+
+    /**
+     * La app ya recibió la sesión: se limpia todo el estado. Sin esto, al cerrar sesión y volver
+     * a esta pantalla el token seguía aquí y se iniciaba sesión de nuevo automáticamente.
+     */
+    fun onSessionConsumed() {
+        tempToken = null
+        _state.value = LoginUiState()
+    }
+
+    /**
+     * Muestra un aviso que viene de fuera del formulario (p. ej. del acceso biométrico) y,
+     * si se indica, rellena el correo para que solo falte la contraseña.
+     */
+    fun showNotice(message: String, email: String? = null) {
+        tempToken = null
+        _state.update {
+            it.copy(
+                step = LoginStep.Credentials,
+                isRegistering = false,
+                registerResult = null,
+                email = email ?: it.email,
+                code = "",
+                isLoading = false,
+                errorMessage = message,
+                successMessage = null,
+            )
+        }
     }
 
     fun submit() = when (_state.value.step) {
@@ -63,24 +96,25 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         if (s.isLoading) return
         val email = s.email.trim()
         if (!EMAIL_REGEX.matches(email)) return showError("Escribe un correo válido.")
-        if (s.password.isEmpty()) return showError("Escribe tu contraseña.")
+        if (s.password.length < ApiRules.MIN_PASSWORD_LENGTH) {
+            return showError("La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.")
+        }
 
         _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         viewModelScope.launch {
             repository.register(email, s.password).fold(
                 onSuccess = { response ->
-                    _state.update { 
+                    _state.update {
                         it.copy(
-                            isLoading = false, 
+                            isLoading = false,
                             registerResult = response,
                             isRegistering = false,
-                            successMessage = "¡Cuenta creada con éxito!"
-                        ) 
+                            password = "",
+                            successMessage = "¡Cuenta creada con éxito!",
+                        )
                     }
                 },
-                onFailure = {
-                    _state.update { it.copy(isLoading = false, errorMessage = "Error al registrarse o el correo ya existe.") }
-                }
+                onFailure = { e -> fail(e) },
             )
         }
     }
@@ -112,21 +146,19 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         val s = _state.value
         if (s.isLoading) return
         val temp = tempToken ?: return backToCredentials()
-        if (s.code.length != CODE_LENGTH) return showError("Ingresa los 6 dígitos del código.")
+        if (s.code.length != ApiRules.TOTP_CODE_LENGTH) return showError("Ingresa los 6 dígitos del código.")
 
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             repository.verifyTwoFactor(temp, s.code).fold(
-                onSuccess = { token ->
+                onSuccess = { session ->
                     tempToken = null
-                    _state.update { it.copy(isLoading = false, accessToken = token) }
+                    _state.update { it.copy(isLoading = false, session = session) }
                 },
                 onFailure = { e -> fail(e) },
             )
         }
     }
-
-    private val EMAIL_REGEX = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
     private fun showError(message: String) = _state.update { it.copy(errorMessage = message) }
 
@@ -137,10 +169,14 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
             it.copy(
                 isLoading = false,
                 step = if (error == AuthError.SessionExpired) LoginStep.Credentials else it.step,
+                code = if (error == AuthError.InvalidCode) "" else it.code,
                 errorMessage = when (error) {
                     AuthError.InvalidCredentials -> "Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo."
                     AuthError.InvalidCode -> "El código de Google Authenticator es incorrecto o expiró."
                     AuthError.SessionExpired -> "La verificación expiró. Inicia sesión de nuevo."
+                    AuthError.EmailTaken -> "Ese correo ya está registrado. Inicia sesión."
+                    AuthError.WeakPassword -> "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres."
+                    AuthError.TooManyAttempts -> "Demasiados intentos. Espera unos minutos e inténtalo de nuevo."
                     AuthError.Network -> "Sin conexión. Revisa tu internet e inténtalo de nuevo."
                     AuthError.Unknown -> "Algo salió mal. Inténtalo de nuevo."
                 },
@@ -149,6 +185,6 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     }
 
     private companion object {
-        const val CODE_LENGTH = 6
+        val EMAIL_REGEX = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
     }
 }
