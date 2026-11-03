@@ -29,9 +29,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.prisma.ui.Prisma
 import com.example.prisma.ui.PrismaPalette
+import com.example.prisma.ui.isDesktopLayout
 
 enum class NavDestination(val icon: ImageVector, val description: String) {
     Home(Icons.Filled.Home, "Inicio"),
@@ -46,6 +48,10 @@ enum class NavDestination(val icon: ImageVector, val description: String) {
  * nada quede tapado por la barra flotante (que es semitransparente y va encima).
  */
 val BottomNavBarReservedSpace = 88.dp
+
+/** Espacio inferior que deja cada pantalla: en escritorio (web) no hay barra inferior. */
+val bottomNavBarSpace: Dp
+    @Composable get() = if (isDesktopLayout) 32.dp else BottomNavBarReservedSpace
 
 private val BarShape = RoundedCornerShape(28.dp)
 private val IndicatorWidth = 52.dp

@@ -82,6 +82,7 @@ import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.biometric.BiometricController
 import com.example.prisma.biometric.BiometricKind
 import com.example.prisma.biometric.BiometricUnlockResult
+import androidx.compose.foundation.layout.fillMaxHeight
 import kotlinx.coroutines.launch
 import com.example.prisma.getPlatform
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
@@ -151,6 +152,70 @@ fun LoginScreen(
     val colors = Prisma.colors
     val isLight = colors.background.luminance() > 0.5f
 
+    // Formulario (credenciales, código 2FA o cuenta creada): igual en móvil y escritorio.
+    val formContent: @Composable () -> Unit = {
+        if (state.registerResult != null) {
+            RegisterSuccessForm(
+                result = state.registerResult!!,
+                onDismiss = viewModel::dismissRegisterResult
+            )
+        } else {
+            AnimatedContent(
+                targetState = state.step,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+            ) { step ->
+                when (step) {
+                    LoginStep.Credentials -> CredentialsForm(
+                        state = state,
+                        onEmailChange = viewModel::onEmailChange,
+                        onPasswordChange = viewModel::onPasswordChange,
+                        onTogglePassword = viewModel::togglePasswordVisibility,
+                        onSubmit = viewModel::submit,
+                        onToggleRegister = viewModel::toggleRegisterMode,
+                        onForgotPassword = onForgotPassword,
+                        biometricLabel = if (biometricAvailable) biometric?.label else null,
+                        biometricIsFace = biometric?.kind == BiometricKind.FaceId,
+                        biometricBusy = biometricBusy,
+                        onBiometric = ::unlockWithBiometrics,
+                    )
+                    LoginStep.TwoFactor -> TwoFactorForm(
+                        state = state,
+                        onCodeChange = viewModel::onCodeChange,
+                        onSubmit = viewModel::submit,
+                        onBack = viewModel::backToCredentials,
+                    )
+                }
+            }
+        }
+    }
+
+    if (isDesktopLayout) {
+        // Escritorio (solo web): panel de marca a la izquierda y formulario a la derecha.
+        Row(modifier.fillMaxSize()) {
+            DesktopBrandPanel(Modifier.weight(0.48f).fillMaxHeight())
+            BoxWithConstraints(Modifier.weight(0.52f).fillMaxHeight().background(PanelColor)) {
+                val panelHeight = maxHeight
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Column(
+                        Modifier
+                            .heightIn(min = panelHeight)
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 40.dp, vertical = 48.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        formContent()
+                    }
+                }
+            }
+        }
+        return
+    }
+
     BoxWithConstraints(modifier.fillMaxSize().background(PanelColor)) {
         val paperHeight = (maxHeight * 0.38f).coerceIn(230.dp, 340.dp)
 
@@ -182,39 +247,7 @@ fun LoginScreen(
                     .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (state.registerResult != null) {
-                    RegisterSuccessForm(
-                        result = state.registerResult!!,
-                        onDismiss = viewModel::dismissRegisterResult
-                    )
-                } else {
-                    AnimatedContent(
-                        targetState = state.step,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    ) { step ->
-                        when (step) {
-                            LoginStep.Credentials -> CredentialsForm(
-                                state = state,
-                                onEmailChange = viewModel::onEmailChange,
-                                onPasswordChange = viewModel::onPasswordChange,
-                                onTogglePassword = viewModel::togglePasswordVisibility,
-                                onSubmit = viewModel::submit,
-                                onToggleRegister = viewModel::toggleRegisterMode,
-                                onForgotPassword = onForgotPassword,
-                                biometricLabel = if (biometricAvailable) biometric?.label else null,
-                                biometricIsFace = biometric?.kind == BiometricKind.FaceId,
-                                biometricBusy = biometricBusy,
-                                onBiometric = ::unlockWithBiometrics,
-                            )
-                            LoginStep.TwoFactor -> TwoFactorForm(
-                                state = state,
-                                onCodeChange = viewModel::onCodeChange,
-                                onSubmit = viewModel::submit,
-                                onBack = viewModel::backToCredentials,
-                            )
-                        }
-                    }
-                }
+                formContent()
 
                 Text(
                     text = "TU FUTURO EN TUS MANOS",

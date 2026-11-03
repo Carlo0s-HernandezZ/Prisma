@@ -3,6 +3,7 @@ package com.example.prisma
 import web.navigator.navigator
 
 class JsPlatform: Platform {
+    override val isWeb: Boolean = true
     private val userAgent = navigator.userAgent
     private val browserList = listOf("Chrome", "Firefox", "Safari", "Edge")
 

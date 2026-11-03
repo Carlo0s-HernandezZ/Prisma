@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.prisma.components.BottomNavBarReservedSpace
+import com.example.prisma.components.bottomNavBarSpace
 import com.example.prisma.components.NavDestination
 import com.example.prisma.components.SoftCard
 
@@ -23,7 +23,7 @@ fun ComingSoonScreen(destination: NavDestination, modifier: Modifier = Modifier)
             .fillMaxSize()
             .background(Prisma.colors.background)
             .safeDrawingPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = BottomNavBarReservedSpace),
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomNavBarSpace),
         contentAlignment = Alignment.Center,
     ) {
         SoftCard(Modifier.widthIn(max = 448.dp).fillMaxWidth()) {

@@ -31,11 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.prisma.api.IncomeDto
-import com.example.prisma.components.BottomNavBarReservedSpace
+import com.example.prisma.components.bottomNavBarSpace
 import com.example.prisma.components.SoftCard
 import com.example.prisma.income.IncomeUiState
 import com.example.prisma.income.IncomeViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.BoxWithConstraints
 
 private enum class FinancePanel(val title: String) { Cards("Tarjetas"), Incomes("Ingresos") }
 
@@ -49,13 +50,38 @@ fun CardsScreen(incomeViewModel: IncomeViewModel, modifier: Modifier = Modifier)
     // Mientras el panel de tarjetas no esté listo, se abre directamente en Ingresos.
     val pagerState = rememberPagerState(initialPage = FinancePanel.Incomes.ordinal) { panels.size }
 
-    Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
+    val desktop = isDesktopLayout
+
+    BoxWithConstraints(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
+        // Escritorio ancho (solo web): ambos paneles lado a lado; deslizar con el mouse es incómodo.
+        if (desktop && maxWidth >= 1040.dp) {
+            Column(Modifier.screenContainer(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Text(
+                    "Tarjetas e ingresos",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 28.sp),
+                    color = Prisma.colors.onSurface,
+                )
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        BrandLabel(FinancePanel.Cards.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
+                        CardsPlaceholderPanel(showSwipeHint = false)
+                    }
+                    Column(Modifier.weight(1.25f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        BrandLabel(FinancePanel.Incomes.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
+                        val state by incomeViewModel.state.collectAsStateWithLifecycle()
+                        IncomePanel(state, incomeViewModel)
+                    }
+                }
+            }
+            return@BoxWithConstraints
+        }
+
         Column(
             modifier = Modifier
-                .widthIn(max = 480.dp)
+                .widthIn(max = if (desktop) 720.dp else 480.dp)
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .padding(top = 12.dp),
+                .padding(top = if (desktop) 32.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PanelSwitcher(pagerState, panels.map { it.title }, Modifier.padding(horizontal = 16.dp))
@@ -128,7 +154,7 @@ private fun PanelSwitcher(pagerState: PagerState, titles: List<String>, modifier
 }
 
 @Composable
-private fun CardsPlaceholderPanel() {
+private fun CardsPlaceholderPanel(showSwipeHint: Boolean = true) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SoftCard(Modifier.fillMaxWidth()) {
             Column(
@@ -149,14 +175,16 @@ private fun CardsPlaceholderPanel() {
                     color = Prisma.colors.onSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    "Desliza para registrar tus ingresos →",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Prisma.colors.onSurface.copy(alpha = 0.6f),
-                )
+                if (showSwipeHint) {
+                    Text(
+                        "Desliza para registrar tus ingresos →",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Prisma.colors.onSurface.copy(alpha = 0.6f),
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(BottomNavBarReservedSpace))
+        Spacer(Modifier.height(bottomNavBarSpace))
     }
 }
 
@@ -269,7 +297,7 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
             }
         }
 
-        Spacer(Modifier.height(BottomNavBarReservedSpace))
+        Spacer(Modifier.height(bottomNavBarSpace))
     }
 }
 
