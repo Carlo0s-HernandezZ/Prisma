@@ -5,6 +5,7 @@ import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory
 import com.example.prisma.routes.authRoutes
 import com.example.prisma.routes.dashboardRoutes
+import com.example.prisma.routes.incomeRoutes
 import com.example.prisma.routes.profileRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -66,5 +67,6 @@ fun Application.module(
         authRoutes(sessions, loginLimiter)
         profileRoutes(sessions)
         dashboardRoutes(sessions)
+        incomeRoutes(sessions)
     }
 }

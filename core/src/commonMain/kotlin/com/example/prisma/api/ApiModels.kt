@@ -78,3 +78,42 @@ data class DashboardResponse(
     val alerts: List<PaymentAlertDto>,
     val totalToPayMxn: Double,
 )
+
+// ---------- Ingresos ----------
+
+/**
+ * Los montos viajan como texto decimal con 2 decimales (p. ej. "15000.50") para no perder
+ * precisión: en la BD son NUMERIC(12,2) y un Double puede redondear centavos.
+ */
+@Serializable
+data class CreateIncomeRequest(
+    /** Nombre o concepto del ingreso, p. ej. "Salario". */
+    val nombre: String,
+    val montoNeto: String,
+)
+
+@Serializable
+data class IncomeDto(
+    val id: String,
+    val nombre: String,
+    val montoNeto: String,
+    val esAuditado: Boolean,
+    /** Fecha y hora local del registro, formato ISO "yyyy-MM-ddTHH:mm". */
+    val fechaRegistro: String,
+)
+
+@Serializable
+data class IncomesSummary(
+    /** Ingresos del usuario, del más reciente al más antiguo. */
+    val ingresos: List<IncomeDto>,
+    /** Suma de los ingresos registrados en el mes en curso. */
+    val totalMes: String,
+)
+
+object IncomeRules {
+    /** NUMERIC(12,2): hasta 10 dígitos enteros. */
+    const val MAX_AMOUNT = "9999999999.99"
+
+    /** VARCHAR(100) en la columna ingresos.nombre. */
+    const val MAX_NAME_LENGTH = 100
+}

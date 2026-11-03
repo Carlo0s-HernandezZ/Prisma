@@ -24,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.prisma.components.BottomNavBar
+import com.example.prisma.income.IncomeViewModel
+import com.example.prisma.income.KtorIncomeRepository
+import com.example.prisma.ui.CardsScreen
 import com.example.prisma.ui.ComingSoonScreen
 import com.example.prisma.ui.Prisma
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -120,6 +123,14 @@ fun HomeScreen(
                         viewModel = profileViewModel,
                         onLogout = onLogout,
                     )
+                }
+                NavDestination.Cards -> {
+                    val incomeViewModel = viewModel(key = "incomes-$token") { IncomeViewModel(KtorIncomeRepository(token)) }
+                    val incomeState by incomeViewModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(incomeState.sessionExpired) {
+                        if (incomeState.sessionExpired) currentOnLogout()
+                    }
+                    CardsScreen(incomeViewModel)
                 }
                 else -> ComingSoonScreen(destination)
             }

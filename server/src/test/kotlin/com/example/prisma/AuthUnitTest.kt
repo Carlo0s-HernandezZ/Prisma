@@ -3,6 +3,8 @@ package com.example.prisma
 import com.example.prisma.auth.LoginRateLimiter
 import com.example.prisma.auth.Passwords
 import com.example.prisma.auth.SessionStore
+import com.example.prisma.routes.parseAmount
+import com.example.prisma.routes.parseIncomeName
 import com.example.prisma.utils.TotpUtils
 import java.util.UUID
 import kotlin.test.*
@@ -102,5 +104,32 @@ class PasswordsTest {
         // Contraseñas heredadas en texto plano siguen funcionando (y se migran al entrar).
         assertTrue(Passwords.verify("legacy", "legacy"))
         assertFalse(Passwords.verify("cualquiera", null))
+    }
+}
+
+class IncomeAmountTest {
+    @Test
+    fun acceptsValidAmounts() {
+        assertEquals("15000.00", parseAmount("15000")!!.toPlainString())
+        assertEquals("15000.50", parseAmount(" 15,000.5 ")!!.toPlainString())
+        assertEquals("0.01", parseAmount("0.01")!!.toPlainString())
+        assertEquals("9999999999.99", parseAmount("9999999999.99")!!.toPlainString())
+    }
+
+    @Test
+    fun rejectsInvalidAmounts() {
+        listOf("0", "-5", "abc", "", "1.234", "10000000000.00").forEach {
+            assertNull(parseAmount(it), "debió rechazar '$it'")
+        }
+    }
+}
+
+class IncomeNameTest {
+    @Test
+    fun normalizesAndValidatesName() {
+        assertEquals("Salario quincenal", parseIncomeName("  Salario   quincenal "))
+        assertNull(parseIncomeName("   "))
+        assertNull(parseIncomeName("x".repeat(101)))
+        assertEquals("x".repeat(100), parseIncomeName("x".repeat(100)))
     }
 }

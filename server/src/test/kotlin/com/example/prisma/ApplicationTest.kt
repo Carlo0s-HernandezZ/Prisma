@@ -26,6 +26,8 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/user/profile").status)
         assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/user/profile").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/reports/latest").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/incomes").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
         val forged = client.get("/api/v1/reports/latest") {
             header(HttpHeaders.Authorization, "Bearer prisma_access_token_123")
         }

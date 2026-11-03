@@ -35,6 +35,8 @@ object IngresosTable : Table("ingresos") {
     val id = uuid("id")
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
     val montoNeto = decimal("monto_neto", 12, 2)
+    /** Concepto del ingreso (migración 001_ingresos_nombre.sql). */
+    val nombre = varchar("nombre", 100)
     val esAuditado = bool("es_auditado").default(false)
     val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
