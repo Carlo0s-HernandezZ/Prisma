@@ -19,7 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.prisma.components.bottomNavBarSpace
+import com.example.prisma.components.BottomNavBarReservedSpace
 import com.example.prisma.components.SoftCard
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Fingerprint
@@ -87,154 +87,6 @@ fun ProfileScreen(
         }
     }
 
-    val personalDataCard: @Composable () -> Unit = {
-        SoftCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Datos Personales",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
-
-                OutlinedTextField(
-                    value = state.nombre,
-                    onValueChange = viewModel::onNombreChange,
-                    enabled = !state.isLoading,
-                    label = { Text("Nombre") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = state.apellido,
-                    onValueChange = viewModel::onApellidoChange,
-                    enabled = !state.isLoading,
-                    label = { Text("Apellido") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                // Interactive Date Selection Field
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true }
-                ) {
-                    OutlinedTextField(
-                        value = state.fechaNacimiento,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Fecha de Nacimiento") },
-                        placeholder = { Text("Toca para seleccionar fecha") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Filled.DateRange,
-                                contentDescription = "Seleccionar fecha",
-                                modifier = Modifier.clickable { showDatePicker = true }
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                state.message?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (state.isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                    )
-                }
-
-                // Save / Update Button
-                Button(
-                    onClick = viewModel::save,
-                    enabled = !state.isLoading,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado)
-                ) {
-                    if (state.isLoading) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Guardar / Actualizar", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // Delete Personal Data Button (pide confirmación)
-                OutlinedButton(
-                    onClick = viewModel::requestDelete,
-                    enabled = !state.isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Prisma.colors.statusCritical)
-                ) {
-                    Text("Eliminar Datos Personales")
-                }
-            }
-        }
-    }
-    val logoutCard: @Composable () -> Unit = {
-        // Logout Button
-        SoftCard(Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onLogout)
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Cerrar Sesión",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Prisma.colors.statusCritical
-                )
-            }
-        }
-    }
-
-    if (isDesktopLayout) {
-        // Escritorio (solo web): datos personales a la izquierda, cuenta a la derecha.
-        // "Cerrar sesión" ya está en el menú lateral.
-        Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.screenContainer(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                Text(
-                    "Perfil de usuario",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 28.sp),
-                    color = Prisma.colors.onSurface,
-                )
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Column(
-                        Modifier.weight(1.4f).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        personalDataCard()
-                        Spacer(Modifier.height(bottomNavBarSpace))
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        SoftCard(Modifier.fillMaxWidth()) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                BrandLabel("Cuenta", color = Prisma.colors.onSurface.copy(alpha = 0.6f))
-                                Text(
-                                    userEmail,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = Prisma.colors.onSurface,
-                                )
-                                Text(
-                                    "Protegida con contraseña y código de Google Authenticator.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Prisma.colors.onSurface.copy(alpha = 0.7f),
-                                )
-                            }
-                        }
-                        biometric?.let { BiometricSettingCard(it) }
-                    }
-                }
-            }
-        }
-        return
-    }
-
     Box(
         modifier = modifier.fillMaxSize().background(Prisma.colors.background),
         contentAlignment = Alignment.TopCenter
@@ -268,13 +120,112 @@ fun ProfileScreen(
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                personalDataCard()
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Datos Personales",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+
+                        OutlinedTextField(
+                            value = state.nombre,
+                            onValueChange = viewModel::onNombreChange,
+                            enabled = !state.isLoading,
+                            label = { Text("Nombre") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = state.apellido,
+                            onValueChange = viewModel::onApellidoChange,
+                            enabled = !state.isLoading,
+                            label = { Text("Apellido") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        // Interactive Date Selection Field
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showDatePicker = true }
+                        ) {
+                            OutlinedTextField(
+                                value = state.fechaNacimiento,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Fecha de Nacimiento") },
+                                placeholder = { Text("Toca para seleccionar fecha") },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.DateRange,
+                                        contentDescription = "Seleccionar fecha",
+                                        modifier = Modifier.clickable { showDatePicker = true }
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        state.message?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (state.isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                            )
+                        }
+
+                        // Save / Update Button
+                        Button(
+                            onClick = viewModel::save,
+                            enabled = !state.isLoading,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado)
+                        ) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Guardar / Actualizar", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Delete Personal Data Button (pide confirmación)
+                        OutlinedButton(
+                            onClick = viewModel::requestDelete,
+                            enabled = !state.isLoading,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Prisma.colors.statusCritical)
+                        ) {
+                            Text("Eliminar Datos Personales")
+                        }
+                    }
+                }
 
                 biometric?.let { BiometricSettingCard(it) }
 
-                logoutCard()
+                // Logout Button
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onLogout)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cerrar Sesión",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Prisma.colors.statusCritical
+                        )
+                    }
+                }
 
-                Spacer(Modifier.height(bottomNavBarSpace))
+                Spacer(Modifier.height(BottomNavBarReservedSpace))
             }
         }
     }

@@ -74,7 +74,7 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
             val data = PersonalData(s.nombre.trim(), s.apellido.trim(), s.fechaNacimiento.ifBlank { null })
             repository.save(data).fold(
                 onSuccess = {
-                    _state.update { it.copy(isLoading = false, message = "¡Datos personales guardados con éxito!", isError = false) }
+                    _state.update { it.copy(isLoading = false, message = "Datos guardados con éxito.", isError = false) }
                 },
                 onFailure = { e -> fail(e, "Error al guardar los datos.") },
             )
@@ -92,7 +92,7 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
             repository.delete().fold(
                 onSuccess = {
                     _state.update {
-                        ProfileUiState(message = "Datos personales eliminados.", isError = false)
+                        ProfileUiState(message = "Datos eliminados.", isError = false)
                     }
                 },
                 onFailure = { e -> fail(e, "No se pudieron eliminar los datos.") },

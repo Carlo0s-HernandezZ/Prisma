@@ -1,10 +1,13 @@
 package com.example.prisma.auth
 
 import com.example.prisma.api.ApiErrorCodes
+import com.example.prisma.api.ForgotPasswordRequest
+import com.example.prisma.api.GeneralResponse
 import com.example.prisma.api.LoginRequest
 import com.example.prisma.api.LoginResponse
 import com.example.prisma.api.RegisterRequest
 import com.example.prisma.api.RegisterResponse
+import com.example.prisma.api.ResetPasswordRequest
 import com.example.prisma.api.Verify2faRequest
 import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.defaultBaseUrl
@@ -34,6 +37,8 @@ interface AuthRepository {
     suspend fun login(email: String, password: String): Result<String>
     suspend fun verifyTwoFactor(tempToken: String, code: String): Result<Verify2faResponse>
     suspend fun register(email: String, password: String): Result<RegisterResponse>
+    suspend fun forgotPassword(email: String): Result<String>
+    suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String>
     suspend fun logout(accessToken: String)
 }
 
@@ -59,6 +64,16 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun register(email: String, password: String): Result<RegisterResponse> {
         delay(700)
         return Result.success(RegisterResponse("Success", "DEMODEMODEMODEMODEMODEMODEMODEMO", ""))
+    }
+
+    override suspend fun forgotPassword(email: String): Result<String> {
+        delay(700)
+        return Result.success("Código enviado")
+    }
+
+    override suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String> {
+        delay(700)
+        return Result.success("Contraseña actualizada")
     }
 
     override suspend fun logout(accessToken: String) = Unit
@@ -92,6 +107,22 @@ class KtorAuthRepository(
                 setBody(RegisterRequest(email, password))
             }
         }) { it.body<RegisterResponse>() }
+
+    override suspend fun forgotPassword(email: String): Result<String> =
+        request(default401 = AuthError.Unknown, send = {
+            client.post("$baseUrl/api/v1/auth/forgot-password") {
+                contentType(ContentType.Application.Json)
+                setBody(ForgotPasswordRequest(email))
+            }
+        }) { it.body<GeneralResponse>().message }
+
+    override suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String> =
+        request(default401 = AuthError.Unknown, send = {
+            client.post("$baseUrl/api/v1/auth/reset-password") {
+                contentType(ContentType.Application.Json)
+                setBody(ResetPasswordRequest(email, code, newPassword))
+            }
+        }) { it.body<GeneralResponse>().message }
 
     override suspend fun logout(accessToken: String) {
         // Mejor esfuerzo: aunque falle la red, la sesión local se cierra igual.

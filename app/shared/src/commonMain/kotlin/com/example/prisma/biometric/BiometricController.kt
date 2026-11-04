@@ -166,9 +166,6 @@ class BiometricController(
         private const val KEY_EMAIL = "email"
         private const val KEY_DECLINED_FOR = "declined_for"
 
-        /** Texto que explica la regla de las 24 horas. */
-        val windowExplanation =
-            "Por seguridad, cada ${ApiRules.TWO_FACTOR_WINDOW_HOURS} horas te pediremos tu contraseña y el código de Google Authenticator."
     }
 }
 
