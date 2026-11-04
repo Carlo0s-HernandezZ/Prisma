@@ -56,6 +56,14 @@ import com.example.prisma.biometric.BiometricEnableResult
 import com.example.prisma.biometric.BiometricKind
 import com.example.prisma.biometric.rememberBiometricController
 import com.example.prisma.ui.BiometricSetting
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.unit.IntOffset
+import com.example.prisma.components.SideNavBar
+import com.example.prisma.ui.ProvideLayoutMode
+import com.example.prisma.ui.isDesktopLayout
 
 /** [viaBiometrics]: true si se entró con huella / Face ID (sin escribir contraseña ni código). */
 private data class UserSession(val token: String, val email: String, val viaBiometrics: Boolean = false)
@@ -63,6 +71,7 @@ private data class UserSession(val token: String, val email: String, val viaBiom
 @Composable
 fun App() {
     AppTheme {
+      ProvideLayoutMode {
         var session by remember { mutableStateOf<UserSession?>(null) }
         val authRepository = remember { KtorAuthRepository() }
         val biometric = rememberBiometricController()
@@ -151,8 +160,8 @@ fun App() {
                         title = { Text("¿Entrar con tu ${biometric.label}?") },
                         text = {
                             Text(
-                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" +
-                                    BiometricController.windowExplanation
+                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" 
+
                             )
                         },
                         confirmButton = {
@@ -174,6 +183,7 @@ fun App() {
 
             SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(16.dp))
         }
+      }
     }
 }
 
@@ -201,17 +211,21 @@ fun HomeScreen(
         if (state.sessionExpired) currentOnLogout()
     }
 
-    Box(Modifier.fillMaxSize().background(Prisma.colors.background)) {
-        // Transición entre ventanas: desliza hacia el lado de la pestaña elegida y hace fundido.
+    val desktop = isDesktopLayout
+
+    val screens: @Composable (Modifier) -> Unit = { contentModifier ->
+        // Transición entre ventanas: desliza hacia el lado de la sección elegida y hace fundido
+        // (horizontal con la barra inferior del móvil, vertical con el menú lateral de escritorio).
         AnimatedContent(
             targetState = selectedDestination,
-            modifier = Modifier.fillMaxSize(),
+            modifier = contentModifier,
             transitionSpec = {
                 val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                val enter = slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { w -> direction * w / 4 } +
-                    fadeIn(tween(320))
-                val exit = slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { w -> -direction * w / 4 } +
-                    fadeOut(tween(200))
+                val spec = tween<IntOffset>(320, easing = FastOutSlowInEasing)
+                val enter = (if (desktop) slideInVertically(spec) { h -> direction * h / 6 }
+                    else slideInHorizontally(spec) { w -> direction * w / 4 }) + fadeIn(tween(320))
+                val exit = (if (desktop) slideOutVertically(spec) { h -> -direction * h / 6 }
+                    else slideOutHorizontally(spec) { w -> -direction * w / 4 }) + fadeOut(tween(200))
                 enter togetherWith exit
             },
             label = "navContent",
@@ -245,6 +259,24 @@ fun HomeScreen(
                 else -> ComingSoonScreen(destination)
             }
         }
+    }
+
+    if (desktop) {
+        // Escritorio (solo web): menú lateral fijo + contenido.
+        Row(Modifier.fillMaxSize().background(Prisma.colors.background)) {
+            SideNavBar(
+                selected = selectedDestination,
+                onSelect = { selectedDestination = it },
+                userEmail = userEmail,
+                onLogout = onLogout,
+            )
+            screens(Modifier.weight(1f).fillMaxHeight())
+        }
+        return
+    }
+
+    Box(Modifier.fillMaxSize().background(Prisma.colors.background)) {
+        screens(Modifier.fillMaxSize())
 
         // Una sola barra para toda la app: así el indicador se desliza entre pestañas.
         BottomNavBar(

@@ -27,6 +27,7 @@ object DatosPersonalesTable : Table("datos_personales") {
     val apellido = varchar("apellido", 100)
     val fechaNacimiento = date("fecha_nacimiento").nullable()
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
+    val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
