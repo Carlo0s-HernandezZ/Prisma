@@ -53,17 +53,17 @@ class SessionStoreTest {
 
     @Test
     fun pendingTokenExpires() {
-        val t = store.createPending(user)
-        assertEquals(user, store.attemptPending(t))
+        val t = store.createPending(user, presetCode = "123456")
+        assertEquals(user, store.attemptPending(t, "123456"))
         now += 1_001
-        assertNull(store.attemptPending(t))
+        assertNull(store.attemptPending(t, "123456"))
     }
 
     @Test
     fun pendingTokenLimitsAttempts() {
-        val t = store.createPending(user)
-        repeat(3) { assertEquals(user, store.attemptPending(t)) }
-        assertNull(store.attemptPending(t))
+        val t = store.createPending(user, presetCode = "123456")
+        repeat(3) { assertNull(store.attemptPending(t, "wrong")) }
+        assertNull(store.attemptPending(t, "123456"))
     }
 
     @Test

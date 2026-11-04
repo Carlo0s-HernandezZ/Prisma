@@ -32,7 +32,7 @@ fun main() {
  * Orígenes web permitidos por CORS (las apps de Android/iOS no usan CORS).
  * Configurable con CORS_ALLOWED_HOSTS="host:puerto,otro:puerto" o "*" para permitir todos (solo desarrollo).
  */
-private val DEFAULT_CORS_HOSTS = listOf("localhost:3000", "127.0.0.1:3000", "localhost:3001", "127.0.0.1:3001")
+private val DEFAULT_CORS_HOSTS = listOf("localhost:3000", "127.0.0.1:3000", "localhost:3001", "127.0.0.1:3001", "192.168.100.34:8080", "192.168.100.34:3000")
 
 fun Application.module(
     initDatabase: Boolean = true,

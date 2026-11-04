@@ -99,7 +99,7 @@ private val ButtonColor = PrismaPalette.Dorado
 fun LoginScreen(
     onLoginSuccess: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
-    onForgotPassword: () -> Unit = {},
+    onForgotPassword: (() -> Unit)? = null,
     /** Login con huella / Face ID (sin 2FA, dentro de la ventana de 24 h). */
     onBiometricLogin: (Verify2faResponse) -> Unit = {},
     biometric: BiometricController? = null,
@@ -111,6 +111,7 @@ fun LoginScreen(
     val state by viewModel.state.collectAsState()
     val currentOnSuccess by rememberUpdatedState(onLoginSuccess)
     val currentOnBiometricLogin by rememberUpdatedState(onBiometricLogin)
+    val forgotAction = onForgotPassword ?: viewModel::toggleForgotPassword
     val scope = rememberCoroutineScope()
     var biometricBusy by remember { mutableStateOf(false) }
     val biometricAvailable = biometric != null && biometric.isSupported && biometric.enrolledEmail != null
@@ -187,6 +188,16 @@ fun LoginScreen(
                         result = state.registerResult!!,
                         onDismiss = viewModel::dismissRegisterResult
                     )
+                } else if (state.isForgotPassword) {
+                    ForgotPasswordForm(
+                        state = state,
+                        onEmailChange = viewModel::onForgotEmailChange,
+                        onCodeChange = viewModel::onResetCodeChange,
+                        onPasswordChange = viewModel::onNewPasswordChange,
+                        onSubmitEmail = viewModel::submitForgotPassword,
+                        onSubmitReset = viewModel::submitResetPassword,
+                        onBack = forgotAction,
+                    )
                 } else {
                     AnimatedContent(
                         targetState = state.step,
@@ -200,7 +211,7 @@ fun LoginScreen(
                                 onTogglePassword = viewModel::togglePasswordVisibility,
                                 onSubmit = viewModel::submit,
                                 onToggleRegister = viewModel::toggleRegisterMode,
-                                onForgotPassword = onForgotPassword,
+                                onForgotPassword = forgotAction,
                                 biometricLabel = if (biometricAvailable) biometric?.label else null,
                                 biometricIsFace = biometric?.kind == BiometricKind.FaceId,
                                 biometricBusy = biometricBusy,
@@ -607,5 +618,69 @@ private fun SuccessBanner(message: String) {
     ) {
         Box(Modifier.size(10.dp).background(colors.statusHealthy, CircleShape))
         Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp), color = colors.onSurface)
+    }
+}
+
+@Composable
+private fun ForgotPasswordForm(
+    state: LoginUiState,
+    onEmailChange: (String) -> Unit,
+    onCodeChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onSubmitEmail: () -> Unit,
+    onSubmitReset: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Header(
+            title = "Recuperar contraseña",
+            subtitle = if (state.resetStep == 1) "Ingresa tu correo para recibir un código de recuperación." else "Ingresa el código de 6 dígitos enviado a tu correo y tu nueva contraseña."
+        )
+
+        if (state.resetStep == 1) {
+            PillField(
+                value = state.forgotEmail,
+                onValueChange = onEmailChange,
+                placeholder = "Correo electrónico",
+                label = "Correo electrónico",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmitEmail() }),
+            )
+            state.errorMessage?.let { ErrorBanner(it) }
+            state.successMessage?.let { SuccessBanner(it) }
+
+            PrimaryPillButton(text = "Enviar código", onClick = onSubmitEmail, loading = state.isLoading)
+        } else {
+            PillField(
+                value = state.resetCode,
+                onValueChange = onCodeChange,
+                placeholder = "000000",
+                label = "Código de 6 dígitos",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            )
+            PillField(
+                value = state.newPassword,
+                onValueChange = onPasswordChange,
+                placeholder = "Nueva contraseña",
+                label = "Nueva contraseña",
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmitReset() }),
+            )
+            state.errorMessage?.let { ErrorBanner(it) }
+            state.successMessage?.let { SuccessBanner(it) }
+
+            PrimaryPillButton(text = "Cambiar contraseña", onClick = onSubmitReset, loading = state.isLoading)
+        }
+
+        Text(
+            text = "Volver al inicio de sesión",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = InkOnPanel,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onBack)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
     }
 }

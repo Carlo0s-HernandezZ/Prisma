@@ -151,8 +151,8 @@ fun App() {
                         title = { Text("¿Entrar con tu ${biometric.label}?") },
                         text = {
                             Text(
-                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" +
-                                    BiometricController.windowExplanation
+                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" 
+
                             )
                         },
                         confirmButton = {

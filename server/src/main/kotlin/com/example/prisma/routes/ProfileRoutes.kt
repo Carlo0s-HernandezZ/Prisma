@@ -91,6 +91,7 @@ fun Route.profileRoutes(sessions: SessionStore) {
                         it[DatosPersonalesTable.nombre] = nombre
                         it[DatosPersonalesTable.apellido] = apellido
                         it[DatosPersonalesTable.fechaNacimiento] = fecha
+                        it[DatosPersonalesTable.fechaActualizacion] = CurrentTimestamp
                         if (existing[DatosPersonalesTable.fechaCreacion] == null) {
                             it[DatosPersonalesTable.fechaCreacion] = CurrentTimestamp
                         }
@@ -105,7 +106,7 @@ fun Route.profileRoutes(sessions: SessionStore) {
                     }[DatosPersonalesTable.id]
                 }
             }
-            call.respond(HttpStatusCode.OK, PersonalDataResponse("Datos personales guardados.", profileId))
+            call.respond(HttpStatusCode.OK, PersonalDataResponse("Datos guardados.", profileId))
         }
 
         delete {

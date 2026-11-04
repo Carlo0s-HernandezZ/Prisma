@@ -46,7 +46,7 @@ fun ProfileScreen(
     if (state.confirmDelete) {
         AlertDialog(
             onDismissRequest = viewModel::cancelDelete,
-            title = { Text("¿Eliminar datos personales?") },
+            title = { Text("¿Eliminar datos?") },
             text = { Text("Se borrarán tu nombre, apellido y fecha de nacimiento. Esta acción no se puede deshacer.") },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmDelete) {
@@ -201,7 +201,7 @@ fun ProfileScreen(
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Prisma.colors.statusCritical)
                         ) {
-                            Text("Eliminar Datos Personales")
+                            Text("Eliminar")
                         }
                     }
                 }
@@ -260,11 +260,7 @@ private fun BiometricSettingCard(setting: BiometricSetting) {
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = Prisma.colors.onSurface,
                 )
-                Text(
-                    BiometricController.windowExplanation,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Prisma.colors.onSurface.copy(alpha = 0.7f),
-                )
+
             }
             if (setting.busy) {
                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = PrismaPalette.NaranjaPrisma)

@@ -41,6 +41,15 @@ data class ApiError(val code: String, val message: String)
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
+data class ForgotPasswordRequest(val email: String)
+
+@Serializable
+data class ResetPasswordRequest(val email: String, val code: String, val newPassword: String)
+
+@Serializable
+data class GeneralResponse(val message: String)
+
+@Serializable
 data class LoginResponse(val tempToken: String)
 
 @Serializable

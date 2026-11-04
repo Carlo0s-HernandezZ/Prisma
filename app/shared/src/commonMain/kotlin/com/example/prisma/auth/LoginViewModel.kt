@@ -24,8 +24,13 @@ data class LoginUiState(
     val successMessage: String? = null,
     val isRegistering: Boolean = false,
     val registerResult: RegisterResponse? = null,
-    /** Sesión obtenida tras el 2FA; la pantalla la entrega a la app y llama a [LoginViewModel.onSessionConsumed]. */
     val session: Verify2faResponse? = null,
+    // Recuperación de contraseña
+    val isForgotPassword: Boolean = false,
+    val forgotEmail: String = "",
+    val resetCode: String = "",
+    val newPassword: String = "",
+    val resetStep: Int = 1, // 1: pedir correo, 2: ingresar código y nueva contraseña
 )
 
 class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
@@ -52,24 +57,81 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         _state.update { it.copy(registerResult = null, isRegistering = false) }
     }
 
+    fun toggleForgotPassword() = _state.update {
+        it.copy(
+            isForgotPassword = !it.isForgotPassword,
+            forgotEmail = it.email,
+            resetCode = "",
+            newPassword = "",
+            resetStep = 1,
+            errorMessage = null,
+            successMessage = null,
+        )
+    }
+
+    fun onForgotEmailChange(value: String) = _state.update { it.copy(forgotEmail = value, errorMessage = null, successMessage = null) }
+    fun onResetCodeChange(value: String) = _state.update { it.copy(resetCode = value.filter(Char::isDigit).take(6), errorMessage = null, successMessage = null) }
+    fun onNewPasswordChange(value: String) = _state.update { it.copy(newPassword = value, errorMessage = null, successMessage = null) }
+
+    fun submitForgotPassword() {
+        val email = _state.value.forgotEmail.trim()
+        if (!EMAIL_REGEX.matches(email)) {
+            return _state.update { it.copy(errorMessage = "Escribe un correo válido.") }.let { Unit }
+        }
+        _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+        viewModelScope.launch {
+            repository.forgotPassword(email).fold(
+                onSuccess = { msg ->
+                    _state.update { it.copy(isLoading = false, resetStep = 2, successMessage = msg) }
+                },
+                onFailure = {
+                    _state.update { it.copy(isLoading = false, errorMessage = "Error al solicitar recuperación.") }
+                },
+            )
+        }
+    }
+
+    fun submitResetPassword() {
+        val s = _state.value
+        val email = s.forgotEmail.trim()
+        val code = s.resetCode.trim()
+        val pass = s.newPassword
+        if (code.length != 6) {
+            return _state.update { it.copy(errorMessage = "Ingresa el código de 6 dígitos.") }.let { Unit }
+        }
+        if (pass.length < ApiRules.MIN_PASSWORD_LENGTH) {
+            return _state.update { it.copy(errorMessage = "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.") }.let { Unit }
+        }
+
+        _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+        viewModelScope.launch {
+            repository.resetPassword(email, code, pass).fold(
+                onSuccess = { msg ->
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            isForgotPassword = false,
+                            successMessage = "¡Contraseña actualizada! Ya puedes iniciar sesión.",
+                        )
+                    }
+                },
+                onFailure = {
+                    _state.update { it.copy(isLoading = false, errorMessage = "Código inválido o expirado.") }
+                },
+            )
+        }
+    }
+
     fun backToCredentials() {
         tempToken = null
         _state.update { it.copy(step = LoginStep.Credentials, code = "", errorMessage = null, isLoading = false) }
     }
 
-    /**
-     * La app ya recibió la sesión: se limpia todo el estado. Sin esto, al cerrar sesión y volver
-     * a esta pantalla el token seguía aquí y se iniciaba sesión de nuevo automáticamente.
-     */
     fun onSessionConsumed() {
         tempToken = null
         _state.value = LoginUiState()
     }
 
-    /**
-     * Muestra un aviso que viene de fuera del formulario (p. ej. del acceso biométrico) y,
-     * si se indica, rellena el correo para que solo falte la contraseña.
-     */
     fun showNotice(message: String, email: String? = null) {
         tempToken = null
         _state.update {
@@ -134,7 +196,7 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
                 onSuccess = { temp ->
                     tempToken = temp
                     _state.update {
-                        it.copy(isLoading = false, step = LoginStep.TwoFactor, password = "", code = "")
+                        it.copy(isLoading = false, step = LoginStep.TwoFactor, password = "", code = "", successMessage = "¡Código enviado a tu correo!")
                     }
                 },
                 onFailure = { e -> fail(e) },
@@ -172,7 +234,7 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
                 code = if (error == AuthError.InvalidCode) "" else it.code,
                 errorMessage = when (error) {
                     AuthError.InvalidCredentials -> "Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo."
-                    AuthError.InvalidCode -> "El código de Google Authenticator es incorrecto o expiró."
+                    AuthError.InvalidCode -> "El código de verificación enviado por correo es incorrecto o expiró."
                     AuthError.SessionExpired -> "La verificación expiró. Inicia sesión de nuevo."
                     AuthError.EmailTaken -> "Ese correo ya está registrado. Inicia sesión."
                     AuthError.WeakPassword -> "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres."
