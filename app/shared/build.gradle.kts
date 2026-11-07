@@ -62,6 +62,9 @@ kotlin {
             implementation(libs.ktor.clientCio)
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.fragment)
+
+            // Selector de archivos nativo de Android
+            implementation("androidx.activity:activity-compose:1.13.0")
         }
         commonMain.dependencies {
             api(project(":core"))
