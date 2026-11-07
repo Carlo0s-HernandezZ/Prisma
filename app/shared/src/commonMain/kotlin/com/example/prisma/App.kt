@@ -1,3 +1,4 @@
+
 package com.example.prisma
 
 import androidx.compose.animation.AnimatedContent
@@ -6,42 +7,25 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.prisma.components.BottomNavBar
-import com.example.prisma.income.IncomeViewModel
-import com.example.prisma.income.KtorIncomeRepository
-import com.example.prisma.ui.CardsScreen
-import com.example.prisma.ui.ComingSoonScreen
-import com.example.prisma.ui.Prisma
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.prisma.auth.KtorAuthRepository
-import com.example.prisma.components.NavDestination
-import com.example.prisma.dashboard.DashboardScreen
-import com.example.prisma.dashboard.DashboardViewModel
-import com.example.prisma.dashboard.KtorDashboardRepository
-import com.example.prisma.profile.KtorProfileRepository
-import com.example.prisma.profile.ProfileViewModel
-import com.example.prisma.ui.AppTheme
-import com.example.prisma.ui.LoginScreen
-import com.example.prisma.ui.ProfileScreen
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.safeDrawingPadding
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Fingerprint
@@ -51,242 +35,721 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+
+import com.example.prisma.auth.KtorAuthRepository
 import com.example.prisma.biometric.BiometricController
 import com.example.prisma.biometric.BiometricEnableResult
 import com.example.prisma.biometric.BiometricKind
 import com.example.prisma.biometric.rememberBiometricController
-import com.example.prisma.ui.BiometricSetting
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.ui.unit.IntOffset
+
+import com.example.prisma.components.BottomNavBar
+import com.example.prisma.components.NavDestination
 import com.example.prisma.components.SideNavBar
+
+import com.example.prisma.dashboard.DashboardScreen
+import com.example.prisma.dashboard.DashboardViewModel
+import com.example.prisma.dashboard.KtorDashboardRepository
+
+import com.example.prisma.income.IncomeViewModel
+import com.example.prisma.income.KtorIncomeRepository
+
+import com.example.prisma.payroll.LocalPayrollDocumentPicker
+import com.example.prisma.payroll.PayrollScreen
+import com.example.prisma.payroll.PayrollSelectedFile
+
+import com.example.prisma.profile.KtorProfileRepository
+import com.example.prisma.profile.ProfileViewModel
+
+import com.example.prisma.ui.AppTheme
+import com.example.prisma.ui.BiometricSetting
+import com.example.prisma.ui.CardsScreen
+import com.example.prisma.ui.ComingSoonScreen
+import com.example.prisma.ui.LoginScreen
+import com.example.prisma.ui.Prisma
+import com.example.prisma.ui.ProfileScreen
 import com.example.prisma.ui.ProvideLayoutMode
 import com.example.prisma.ui.isDesktopLayout
 
-/** [viaBiometrics]: true si se entró con huella / Face ID (sin escribir contraseña ni código). */
-private data class UserSession(val token: String, val email: String, val viaBiometrics: Boolean = false)
+import kotlinx.coroutines.launch
+
+// ====================================================
+// SESIÓN DEL USUARIO
+// ====================================================
+
+private data class UserSession(
+    val token: String,
+    val email: String,
+    val viaBiometrics: Boolean = false
+)
+
+// ====================================================
+// APLICACIÓN PRINCIPAL
+// ====================================================
 
 @Composable
 fun App() {
+
     AppTheme {
-      ProvideLayoutMode {
-        var session by remember { mutableStateOf<UserSession?>(null) }
-        val authRepository = remember { KtorAuthRepository() }
-        val biometric = rememberBiometricController()
-        val scope = rememberCoroutineScope()
-        val snackbar = remember { SnackbarHostState() }
 
-        // Al abrir la app (no tras cerrar sesión) se muestra directamente el diálogo de huella / Face ID.
-        var autoPromptBiometric by remember { mutableStateOf(true) }
-        var offerBiometric by remember { mutableStateOf(false) }
-        var biometricBusy by remember { mutableStateOf(false) }
+        // Mantener el diseño adaptable de pruebas
+        ProvideLayoutMode {
 
-        val current = session
-
-        // Tras un login con contraseña + 2FA: renovar la ventana de 24 h o preguntar si se quiere activar.
-        LaunchedEffect(current) {
-            offerBiometric = current != null && !current.viaBiometrics &&
-                biometric.onTwoFactorLogin(current.token, current.email)
-        }
-
-        fun enableBiometrics(s: UserSession) {
-            biometricBusy = true
-            scope.launch {
-                val message = when (val r = biometric.enable(s.token, s.email)) {
-                    BiometricEnableResult.Enabled -> "Listo. La próxima vez entra con tu ${biometric.label}."
-                    BiometricEnableResult.Cancelled -> "No se activó el acceso con ${biometric.label}."
-                    is BiometricEnableResult.Error -> r.message
-                }
-                biometricBusy = false
-                snackbar.showSnackbar(message)
+            var session by remember {
+                mutableStateOf<UserSession?>(null)
             }
-        }
 
-        Box(Modifier.fillMaxSize()) {
-            if (current == null) {
-                LoginScreen(
-                    onLoginSuccess = { token, email -> session = UserSession(token, email) },
-                    onBiometricLogin = { s -> session = UserSession(s.accessToken, s.email, viaBiometrics = true) },
-                    biometric = biometric,
-                    autoPromptBiometric = autoPromptBiometric,
-                    onAutoPromptConsumed = { autoPromptBiometric = false },
-                )
-            } else {
-                val biometricSetting = if (biometric.isSupported) {
-                    BiometricSetting(
-                        label = biometric.label,
-                        isFace = biometric.kind == BiometricKind.FaceId,
-                        enabled = biometric.enrolledEmail.equals(current.email, ignoreCase = true),
-                        busy = biometricBusy,
-                        onToggle = { enable ->
-                            if (enable) {
-                                enableBiometrics(current)
-                            } else {
-                                biometricBusy = true
-                                scope.launch {
-                                    biometric.disable(current.token)
-                                    biometricBusy = false
-                                    snackbar.showSnackbar("Acceso con ${biometric.label} desactivado.")
+            val authRepository = remember {
+                KtorAuthRepository()
+            }
+
+            val biometric = rememberBiometricController()
+            val scope = rememberCoroutineScope()
+
+            val snackbar = remember {
+                SnackbarHostState()
+            }
+
+            var autoPromptBiometric by remember {
+                mutableStateOf(true)
+            }
+
+            var offerBiometric by remember {
+                mutableStateOf(false)
+            }
+
+            var biometricBusy by remember {
+                mutableStateOf(false)
+            }
+
+            val current = session
+
+            // ========================================
+            // AUTENTICACIÓN BIOMÉTRICA
+            // ========================================
+
+            LaunchedEffect(current) {
+
+                offerBiometric =
+                    current != null &&
+                            !current.viaBiometrics &&
+                            biometric.onTwoFactorLogin(
+                                current.token,
+                                current.email
+                            )
+            }
+
+            fun enableBiometrics(user: UserSession) {
+
+                biometricBusy = true
+
+                scope.launch {
+
+                    val mensaje = when (
+                        val respuesta = biometric.enable(
+                            user.token,
+                            user.email
+                        )
+                    ) {
+
+                        BiometricEnableResult.Enabled ->
+                            "Listo. La próxima vez entra con " +
+                                    biometric.label + "."
+
+                        BiometricEnableResult.Cancelled ->
+                            "No se activó el acceso con " +
+                                    biometric.label + "."
+
+                        is BiometricEnableResult.Error ->
+                            respuesta.message
+                    }
+
+                    biometricBusy = false
+
+                    snackbar.showSnackbar(mensaje)
+                }
+            }
+
+            // ========================================
+            // CONTENIDO PRINCIPAL
+            // ========================================
+
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+
+                if (current == null) {
+
+                    // --------------------------------
+                    // INICIO DE SESIÓN
+                    // --------------------------------
+
+                    LoginScreen(
+
+                        onLoginSuccess = { token, email ->
+
+                            session = UserSession(
+                                token = token,
+                                email = email
+                            )
+                        },
+
+                        onBiometricLogin = { s ->
+
+                            session = UserSession(
+                                token = s.accessToken,
+                                email = s.email,
+                                viaBiometrics = true
+                            )
+                        },
+
+                        biometric = biometric,
+
+                        autoPromptBiometric =
+                            autoPromptBiometric,
+
+                        onAutoPromptConsumed = {
+                            autoPromptBiometric = false
+                        }
+                    )
+
+                } else {
+
+                    // --------------------------------
+                    // CONFIGURACIÓN DE BIOMETRÍA
+                    // --------------------------------
+
+                    val biometricSetting =
+                        if (biometric.isSupported) {
+
+                            BiometricSetting(
+
+                                label = biometric.label,
+
+                                isFace =
+                                    biometric.kind ==
+                                            BiometricKind.FaceId,
+
+                                enabled =
+                                    biometric.enrolledEmail.equals(
+                                        current.email,
+                                        ignoreCase = true
+                                    ),
+
+                                busy = biometricBusy,
+
+                                onToggle = { enable ->
+
+                                    if (enable) {
+
+                                        enableBiometrics(current)
+
+                                    } else {
+
+                                        biometricBusy = true
+
+                                        scope.launch {
+
+                                            biometric.disable(
+                                                current.token
+                                            )
+
+                                            biometricBusy = false
+
+                                            snackbar.showSnackbar(
+                                                "Acceso con " +
+                                                        biometric.label +
+                                                        " desactivado."
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+
+                        } else {
+                            null
+                        }
+
+                    // --------------------------------
+                    // PANTALLA PRINCIPAL
+                    // --------------------------------
+
+                    HomeScreen(
+                        token = current.token,
+                        userEmail = current.email,
+                        biometricSetting = biometricSetting,
+
+                        onLogout = {
+
+                            session = null
+                            offerBiometric = false
+
+                            scope.launch {
+                                authRepository.logout(
+                                    current.token
+                                )
+                            }
+                        }
+                    )
+
+                    // --------------------------------
+                    // DIÁLOGO DE BIOMETRÍA
+                    // --------------------------------
+
+                    if (offerBiometric) {
+
+                        AlertDialog(
+
+                            onDismissRequest = {},
+
+                            icon = {
+
+                                Icon(
+                                    imageVector = if (
+                                        biometric.kind ==
+                                        BiometricKind.FaceId
+                                    ) {
+                                        Icons.Filled.Face
+                                    } else {
+                                        Icons.Filled.Fingerprint
+                                    },
+
+                                    contentDescription = null
+                                )
+                            },
+
+                            title = {
+
+                                Text(
+                                    "¿Entrar con tu " +
+                                            biometric.label + "?"
+                                )
+                            },
+
+                            text = {
+
+                                Text(
+                                    "La próxima vez podrás entrar " +
+                                            "a Prisma solo con tu " +
+                                            biometric.label +
+                                            ", sin escribir tu contraseña." +
+                                            "\n\n" +
+                                            BiometricController.windowExplanation
+                                )
+                            },
+
+                            confirmButton = {
+
+                                TextButton(
+                                    onClick = {
+
+                                        offerBiometric = false
+
+                                        enableBiometrics(current)
+                                    }
+                                ) {
+                                    Text("Activar")
+                                }
+                            },
+
+                            dismissButton = {
+
+                                TextButton(
+                                    onClick = {
+
+                                        offerBiometric = false
+
+                                        biometric.decline(
+                                            current.email
+                                        )
+
+                                        scope.launch {
+                                            snackbar.showSnackbar(
+                                                "Puedes activarlo " +
+                                                        "cuando quieras " +
+                                                        "desde tu Perfil."
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Text("Ahora no")
                                 }
                             }
-                        },
-                    )
-                } else {
-                    null
-                }
-
-                HomeScreen(
-                    token = current.token,
-                    userEmail = current.email,
-                    biometricSetting = biometricSetting,
-                    onLogout = {
-                        session = null
-                        offerBiometric = false
-                        scope.launch { authRepository.logout(current.token) }
+                        )
                     }
-                )
-
-                if (offerBiometric) {
-                    AlertDialog(
-                        onDismissRequest = {},
-                        icon = {
-                            Icon(
-                                if (biometric.kind == BiometricKind.FaceId) Icons.Filled.Face else Icons.Filled.Fingerprint,
-                                contentDescription = null,
-                            )
-                        },
-                        title = { Text("¿Entrar con tu ${biometric.label}?") },
-                        text = {
-                            Text(
-                                "La próxima vez podrás entrar a Prisma solo con tu ${biometric.label}, sin escribir tu contraseña.\n\n" 
-
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                offerBiometric = false
-                                enableBiometrics(current)
-                            }) { Text("Activar") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = {
-                                offerBiometric = false
-                                biometric.decline(current.email)
-                                scope.launch { snackbar.showSnackbar("Puedes activarlo cuando quieras desde tu Perfil.") }
-                            }) { Text("Ahora no") }
-                        },
-                    )
                 }
-            }
 
-            SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(16.dp))
+                // ------------------------------------
+                // MENSAJES GLOBALES
+                // ------------------------------------
+
+                SnackbarHost(
+                    hostState = snackbar,
+
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .safeDrawingPadding()
+                        .padding(16.dp)
+                )
+            }
         }
-      }
     }
 }
+
+// ====================================================
+// NAVEGACIÓN PRINCIPAL
+// ====================================================
 
 @Composable
 fun HomeScreen(
     token: String,
     userEmail: String,
     onLogout: () -> Unit,
-    biometricSetting: BiometricSetting? = null,
+    biometricSetting: BiometricSetting? = null
 ) {
-    var selectedDestination by remember { mutableStateOf(NavDestination.Home) }
-    // La clave incluye el token: cada sesión obtiene ViewModels nuevos (sin datos de la sesión anterior).
-    val dashboardViewModel = viewModel(key = "dashboard-$token") { DashboardViewModel(KtorDashboardRepository(token)) }
+
+    var selectedDestination by remember {
+        mutableStateOf(NavDestination.Home)
+    }
+
+    // ================================================
+    // SELECTOR PDF / XML DEL ASISTENTE IA
+    // ================================================
+
+    val documentPicker =
+        LocalPayrollDocumentPicker.current
+
+    var documentoSeleccionado by remember(token) {
+        mutableStateOf<PayrollSelectedFile?>(null)
+    }
+
+    var contadorDocumentos by remember(token) {
+        mutableLongStateOf(0L)
+    }
+
+    // ================================================
+    // DASHBOARD
+    // ================================================
+
+    val dashboardViewModel = viewModel(
+        key = "dashboard-$token"
+    ) {
+        DashboardViewModel(
+            KtorDashboardRepository(token)
+        )
+    }
 
     LaunchedEffect(selectedDestination) {
+
         if (selectedDestination == NavDestination.Home) {
             dashboardViewModel.refresh()
         }
     }
 
-    val state by dashboardViewModel.uiState.collectAsStateWithLifecycle()
-    val currentOnLogout by rememberUpdatedState(onLogout)
+    val state by dashboardViewModel.uiState
+        .collectAsStateWithLifecycle()
+
+    val currentOnLogout by rememberUpdatedState(
+        onLogout
+    )
 
     LaunchedEffect(state.sessionExpired) {
-        if (state.sessionExpired) currentOnLogout()
+
+        if (state.sessionExpired) {
+            currentOnLogout()
+        }
     }
+
+    // ================================================
+    // DISEÑO ADAPTABLE
+    // ================================================
 
     val desktop = isDesktopLayout
 
-    val screens: @Composable (Modifier) -> Unit = { contentModifier ->
-        // Transición entre ventanas: desliza hacia el lado de la sección elegida y hace fundido
-        // (horizontal con la barra inferior del móvil, vertical con el menú lateral de escritorio).
+    // Esta función reutiliza las mismas pantallas
+    // en Android y escritorio.
+    val screens: @Composable (Modifier) -> Unit = {
+            contentModifier ->
+
         AnimatedContent(
+
             targetState = selectedDestination,
+
             modifier = contentModifier,
+
             transitionSpec = {
-                val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                val spec = tween<IntOffset>(320, easing = FastOutSlowInEasing)
-                val enter = (if (desktop) slideInVertically(spec) { h -> direction * h / 6 }
-                    else slideInHorizontally(spec) { w -> direction * w / 4 }) + fadeIn(tween(320))
-                val exit = (if (desktop) slideOutVertically(spec) { h -> -direction * h / 6 }
-                    else slideOutHorizontally(spec) { w -> -direction * w / 4 }) + fadeOut(tween(200))
+
+                val direction =
+                    if (
+                        targetState.ordinal >
+                        initialState.ordinal
+                    ) {
+                        1
+                    } else {
+                        -1
+                    }
+
+                val spec = tween<IntOffset>(
+                    durationMillis = 320,
+                    easing = FastOutSlowInEasing
+                )
+
+                val enter = (
+                        if (desktop) {
+
+                            slideInVertically(spec) { height ->
+                                direction * height / 6
+                            }
+
+                        } else {
+
+                            slideInHorizontally(spec) { width ->
+                                direction * width / 4
+                            }
+                        }
+                        ) + fadeIn(tween(320))
+
+                val exit = (
+                        if (desktop) {
+
+                            slideOutVertically(spec) { height ->
+                                -direction * height / 6
+                            }
+
+                        } else {
+
+                            slideOutHorizontally(spec) { width ->
+                                -direction * width / 4
+                            }
+                        }
+                        ) + fadeOut(tween(200))
+
                 enter togetherWith exit
             },
-            label = "navContent",
+
+            label = "navContent"
+
         ) { destination ->
+
             when (destination) {
-                NavDestination.Home -> DashboardScreen(
-                    state = state,
-                    onRetry = dashboardViewModel::refresh,
-                )
+
+                // ====================================
+                // INICIO
+                // ====================================
+
+                NavDestination.Home -> {
+
+                    DashboardScreen(
+                        state = state,
+                        onRetry =
+                            dashboardViewModel::refresh
+                    )
+                }
+
+                // ====================================
+                // PERFIL
+                // ====================================
+
                 NavDestination.Profile -> {
-                    val profileViewModel = viewModel(key = "profile-$token") { ProfileViewModel(KtorProfileRepository(token)) }
-                    val profileState by profileViewModel.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(profileState.sessionExpired) {
-                        if (profileState.sessionExpired) currentOnLogout()
+
+                    val profileViewModel = viewModel(
+                        key = "profile-$token"
+                    ) {
+                        ProfileViewModel(
+                            KtorProfileRepository(token)
+                        )
                     }
+
+                    val profileState by profileViewModel
+                        .state.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(
+                        profileState.sessionExpired
+                    ) {
+
+                        if (profileState.sessionExpired) {
+                            currentOnLogout()
+                        }
+                    }
+
                     ProfileScreen(
                         userEmail = userEmail,
                         viewModel = profileViewModel,
                         onLogout = onLogout,
-                        biometric = biometricSetting,
+                        biometric = biometricSetting
                     )
                 }
+
+                // ====================================
+                // TARJETAS
+                // ====================================
+
                 NavDestination.Cards -> {
-                    val incomeViewModel = viewModel(key = "incomes-$token") { IncomeViewModel(KtorIncomeRepository(token)) }
-                    val incomeState by incomeViewModel.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(incomeState.sessionExpired) {
-                        if (incomeState.sessionExpired) currentOnLogout()
+
+                    val incomeViewModel = viewModel(
+                        key = "incomes-$token"
+                    ) {
+                        IncomeViewModel(
+                            KtorIncomeRepository(token)
+                        )
                     }
+
+                    val incomeState by incomeViewModel
+                        .state.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(
+                        incomeState.sessionExpired
+                    ) {
+
+                        if (incomeState.sessionExpired) {
+                            currentOnLogout()
+                        }
+                    }
+
                     CardsScreen(incomeViewModel)
                 }
-                else -> ComingSoonScreen(destination)
+
+                // ====================================
+                // ASISTENTE IA - NÓMINA
+                // ====================================
+
+                NavDestination.Assistant -> {
+
+                    PayrollScreen(
+
+                        token = token,
+
+                        documentoSeleccionado =
+                            documentoSeleccionado,
+
+                        onSeleccionarDocumento =
+                            if (documentPicker != null) {
+
+                                {
+
+                                    documentPicker.open {
+                                            nombre,
+                                            contenido ->
+
+                                        contadorDocumentos += 1L
+
+                                        documentoSeleccionado =
+                                            PayrollSelectedFile(
+                                                identificador =
+                                                    contadorDocumentos,
+
+                                                nombreArchivo =
+                                                    nombre,
+
+                                                contenido =
+                                                    contenido
+                                            )
+                                    }
+                                }
+
+                            } else {
+                                null
+                            }
+                    )
+                }
+
+                // ====================================
+                // OTRAS PANTALLAS
+                // ====================================
+
+                else -> {
+                    ComingSoonScreen(destination)
+                }
             }
         }
     }
 
+    // ================================================
+    // NAVEGACIÓN DE ESCRITORIO
+    // ================================================
+
     if (desktop) {
-        // Escritorio (solo web): menú lateral fijo + contenido.
-        Row(Modifier.fillMaxSize().background(Prisma.colors.background)) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Prisma.colors.background)
+        ) {
+
             SideNavBar(
                 selected = selectedDestination,
-                onSelect = { selectedDestination = it },
+
+                onSelect = {
+                    selectedDestination = it
+                },
+
                 userEmail = userEmail,
-                onLogout = onLogout,
+
+                onLogout = onLogout
             )
-            screens(Modifier.weight(1f).fillMaxHeight())
+
+            screens(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
         }
+
         return
     }
 
-    Box(Modifier.fillMaxSize().background(Prisma.colors.background)) {
-        screens(Modifier.fillMaxSize())
+    // ================================================
+    // NAVEGACIÓN DE ANDROID
+    // ================================================
 
-        // Una sola barra para toda la app: así el indicador se desliza entre pestañas.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Prisma.colors.background)
+    ) {
+
+        screens(
+            Modifier.fillMaxSize()
+        )
+
         BottomNavBar(
+
             selected = selectedDestination,
-            onSelect = { selectedDestination = it },
+
+            onSelect = {
+                selectedDestination = it
+            },
+
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .widthIn(max = 448.dp),
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Bottom +
+                                WindowInsetsSides.Horizontal
+                    )
+                )
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp
+                )
+                .widthIn(max = 448.dp)
         )
     }
 }
