@@ -41,6 +41,15 @@ data class ApiError(val code: String, val message: String)
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
+data class ForgotPasswordRequest(val email: String)
+
+@Serializable
+data class ResetPasswordRequest(val email: String, val code: String, val newPassword: String)
+
+@Serializable
+data class GeneralResponse(val message: String)
+
+@Serializable
 data class LoginResponse(val tempToken: String)
 
 @Serializable
@@ -124,6 +133,61 @@ object IncomeRules {
     /** VARCHAR(100) en la columna ingresos.nombre. */
     const val MAX_NAME_LENGTH = 100
 }
+
+// ---------- Tarjetas ----------
+
+@Serializable
+data class CardDto(
+    val id: String,
+    val banco: String,
+    val alias: String,
+    val ultimosCuatro: String? = null,
+)
+
+object CardRules {
+    const val MAX_BANK_LENGTH = 100
+    const val MAX_ALIAS_LENGTH = 150
+    const val LAST_FOUR_LENGTH = 4
+}
+
+@Serializable
+data class CreateCardRequest(
+    val banco: String,
+    val alias: String,
+    val ultimosCuatro: String? = null,
+)
+
+@Serializable
+data class UpdateCardRequest(
+    val banco: String,
+    val alias: String,
+    val ultimosCuatro: String? = null,
+)
+
+@Serializable
+data class CardDocumentDto(
+    val id: String,
+    val tarjetaId: String,
+    val nombreArchivo: String,
+    val tipoMime: String,
+    val urlODatos: String,
+    val montoPesos: String? = null,
+    val periodo: String? = null,
+    val fechaCorte: String? = null,
+    val fechaPago: String? = null,
+    val fechaRegistro: String? = null,
+)
+
+@Serializable
+data class CreateCardDocumentRequest(
+    val nombreArchivo: String,
+    val tipoMime: String,
+    val urlODatos: String,
+    val montoPesos: String? = null,
+    val periodo: String? = null,
+    val fechaCorte: String? = null,
+    val fechaPago: String? = null,
+)
 
 // ---------- Acceso biométrico ----------
 

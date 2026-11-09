@@ -1,0 +1,278 @@
+package com.example.prisma.routes
+
+import com.example.prisma.api.ApiErrorCodes
+import com.example.prisma.api.CardDocumentDto
+import com.example.prisma.api.CardDto
+import com.example.prisma.api.CardRules
+import com.example.prisma.api.CreateCardRequest
+import com.example.prisma.api.UpdateCardRequest
+import com.example.prisma.auth.SessionStore
+import com.example.prisma.db.DatabaseFactory.dbQuery
+import com.example.prisma.http.authenticatedUser
+import com.example.prisma.http.receiveOrBadRequest
+import com.example.prisma.http.respondError
+import com.example.prisma.models.DocumentosTarjetaTable
+import com.example.prisma.models.TarjetasCreditoTable
+import com.example.prisma.services.ParsedStatementData
+import com.example.prisma.services.ServerStatementParser
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.forEachPart
+import io.ktor.http.content.streamProvider
+import io.ktor.server.request.receiveMultipart
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
+import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
+import java.util.UUID
+
+private fun ResultRow.toCardDto(): CardDto =
+    CardDto(
+        id = this[TarjetasCreditoTable.id].toString(),
+        banco = this[TarjetasCreditoTable.banco],
+        alias = this[TarjetasCreditoTable.alias],
+        ultimosCuatro = this[TarjetasCreditoTable.ultimosCuatro],
+    )
+
+fun Route.cardRoutes(sessions: SessionStore) {
+    route("/api/v1/cards") {
+
+        get {
+            val userId = call.authenticatedUser(sessions) ?: return@get
+            val cards = dbQuery {
+                TarjetasCreditoTable.selectAll()
+                    .where { TarjetasCreditoTable.usuarioId eq userId }
+                    .orderBy(TarjetasCreditoTable.fechaRegistro to SortOrder.DESC_NULLS_LAST)
+                    .map { it.toCardDto() }
+            }
+            call.respond(cards)
+        }
+
+        post {
+            val userId = call.authenticatedUser(sessions) ?: return@post
+            val req = call.receiveOrBadRequest<CreateCardRequest>() ?: return@post
+            val banco = req.banco.trim()
+            val alias = req.alias.trim()
+            val lastFour = req.ultimosCuatro?.trim()?.takeIf { it.isNotEmpty() }
+
+            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Nombre de banco inválido.")
+            }
+            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Alias de tarjeta inválido.")
+            }
+            if (lastFour != null && (lastFour.length != CardRules.LAST_FOUR_LENGTH || !lastFour.all(Char::isDigit))) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Los últimos cuatro dígitos deben ser exactamente 4 números.")
+            }
+
+            val newId = UUID.randomUUID()
+            val created = dbQuery {
+                TarjetasCreditoTable.insert {
+                    it[id] = newId
+                    it[usuarioId] = userId
+                    it[TarjetasCreditoTable.banco] = banco
+                    it[TarjetasCreditoTable.alias] = alias
+                    it[ultimosCuatro] = lastFour
+                }
+                TarjetasCreditoTable.selectAll().where { TarjetasCreditoTable.id eq newId }.single().toCardDto()
+            }
+            call.respond(HttpStatusCode.Created, created)
+        }
+
+        put("/{id}") {
+            val userId = call.authenticatedUser(sessions) ?: return@put
+            val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+
+            val req = call.receiveOrBadRequest<UpdateCardRequest>() ?: return@put
+            val banco = req.banco.trim()
+            val alias = req.alias.trim()
+            val lastFour = req.ultimosCuatro?.trim()?.takeIf { it.isNotEmpty() }
+
+            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH) {
+                return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Nombre de banco inválido.")
+            }
+            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH) {
+                return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Alias de tarjeta inválido.")
+            }
+            if (lastFour != null && (lastFour.length != CardRules.LAST_FOUR_LENGTH || !lastFour.all(Char::isDigit))) {
+                return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Los últimos cuatro dígitos deben ser exactamente 4 números.")
+            }
+
+            val updated = dbQuery {
+                val count = TarjetasCreditoTable.update({ (TarjetasCreditoTable.id eq cardId) and (TarjetasCreditoTable.usuarioId eq userId) }) {
+                    it[TarjetasCreditoTable.banco] = banco
+                    it[TarjetasCreditoTable.alias] = alias
+                    it[ultimosCuatro] = lastFour
+                }
+                if (count > 0) {
+                    TarjetasCreditoTable.selectAll().where { TarjetasCreditoTable.id eq cardId }.single().toCardDto()
+                } else null
+            }
+
+            if (updated != null) {
+                call.respond(updated)
+            } else {
+                call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Tarjeta no encontrada.")
+            }
+        }
+
+        delete("/{id}") {
+            val userId = call.authenticatedUser(sessions) ?: return@delete
+            val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@delete call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+
+            val deleted = dbQuery {
+                TarjetasCreditoTable.deleteWhere { (TarjetasCreditoTable.id eq cardId) and (TarjetasCreditoTable.usuarioId eq userId) }
+            }
+            if (deleted > 0) {
+                call.respond(HttpStatusCode.NoContent)
+            } else {
+                call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Tarjeta no encontrada.")
+            }
+        }
+
+        // --- Documentos (PDF o imagen) asociados a una tarjeta (Multipart Upload & PDFBox Parsing) ---
+
+        get("/{id}/documents") {
+            val userId = call.authenticatedUser(sessions) ?: return@get
+            val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@get call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+
+            val docs = dbQuery {
+                val cardExists = TarjetasCreditoTable.selectAll()
+                    .where { (TarjetasCreditoTable.id eq cardId) and (TarjetasCreditoTable.usuarioId eq userId) }
+                    .any()
+                if (!cardExists) return@dbQuery null
+
+                DocumentosTarjetaTable.selectAll()
+                    .where { DocumentosTarjetaTable.tarjetaId eq cardId }
+                    .orderBy(DocumentosTarjetaTable.fechaRegistro to SortOrder.DESC)
+                    .map {
+                        CardDocumentDto(
+                            id = it[DocumentosTarjetaTable.id].toString(),
+                            tarjetaId = it[DocumentosTarjetaTable.tarjetaId].toString(),
+                            nombreArchivo = it[DocumentosTarjetaTable.nombreArchivo],
+                            tipoMime = it[DocumentosTarjetaTable.tipoMime],
+                            urlODatos = it[DocumentosTarjetaTable.urlODatos],
+                            montoPesos = it[DocumentosTarjetaTable.montoPesos]?.setScale(2)?.toPlainString(),
+                            periodo = it[DocumentosTarjetaTable.periodo],
+                            fechaCorte = it[DocumentosTarjetaTable.fechaCorte],
+                            fechaPago = it[DocumentosTarjetaTable.fechaPago],
+                        )
+                    }
+            } ?: return@get call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Tarjeta no encontrada.")
+
+            call.respond(docs)
+        }
+
+        post("/{id}/documents") {
+            val userId = call.authenticatedUser(sessions) ?: return@post
+            val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+
+            var fileName = "documento.pdf"
+            var mimeType = "application/pdf"
+            var fileBytes: ByteArray? = null
+
+            val multipart = call.receiveMultipart()
+            multipart.forEachPart { part ->
+                when (part) {
+                    is PartData.FileItem -> {
+                        fileName = part.originalFileName ?: "documento.pdf"
+                        mimeType = part.contentType?.toString() ?: "application/pdf"
+                        fileBytes = part.streamProvider().readBytes()
+                    }
+                    else -> {}
+                }
+                part.dispose()
+            }
+
+            if (fileBytes == null) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Archivo requerido.")
+            }
+
+            val parsed = if (fileName.endsWith(".pdf", ignoreCase = true) || mimeType.contains("pdf")) {
+                ServerStatementParser.parsePdfBytes(fileBytes!!)
+            } else {
+                ParsedStatementData(
+                    montoPesos = null,
+                    totalAbonos = null,
+                    periodo = null,
+                    fechaCorte = null,
+                    fechaPago = null,
+                    rawTextSummary = null,
+                )
+            }
+
+            val montoDecimal = parsed.montoPesos?.toBigDecimalOrNull()
+
+            val docId = UUID.randomUUID()
+            val created = dbQuery {
+                val cardExists = TarjetasCreditoTable.selectAll()
+                    .where { (TarjetasCreditoTable.id eq cardId) and (TarjetasCreditoTable.usuarioId eq userId) }
+                    .any()
+                if (!cardExists) return@dbQuery null
+
+                DocumentosTarjetaTable.insert {
+                    it[id] = docId
+                    it[tarjetaId] = cardId
+                    it[nombreArchivo] = fileName
+                    it[tipoMime] = mimeType
+                    it[urlODatos] = "uploaded://$fileName"
+                    it[montoPesos] = montoDecimal
+                    it[periodo] = parsed.periodo
+                    it[fechaCorte] = parsed.fechaCorte
+                    it[fechaPago] = parsed.fechaPago
+                }
+                CardDocumentDto(
+                    id = docId.toString(),
+                    tarjetaId = cardId.toString(),
+                    nombreArchivo = fileName,
+                    tipoMime = mimeType,
+                    urlODatos = "uploaded://$fileName",
+                    montoPesos = montoDecimal?.setScale(2)?.toPlainString(),
+                    periodo = parsed.periodo,
+                    fechaCorte = parsed.fechaCorte,
+                    fechaPago = parsed.fechaPago,
+                )
+            } ?: return@post call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Tarjeta no encontrada.")
+
+            call.respond(HttpStatusCode.Created, created)
+        }
+
+        delete("/{id}/documents/{docId}") {
+            val userId = call.authenticatedUser(sessions) ?: return@delete
+            val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@delete call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+            val docId = call.parameters["docId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@delete call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id de documento inválido.")
+
+            val deleted = dbQuery {
+                val cardExists = TarjetasCreditoTable.selectAll()
+                    .where { (TarjetasCreditoTable.id eq cardId) and (TarjetasCreditoTable.usuarioId eq userId) }
+                    .any()
+                if (!cardExists) return@dbQuery 0
+
+                DocumentosTarjetaTable.deleteWhere { DocumentosTarjetaTable.id eq docId }
+            }
+
+            if (deleted > 0) {
+                call.respond(HttpStatusCode.NoContent)
+            } else {
+                call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Documento no encontrado.")
+            }
+        }
+    }
+}

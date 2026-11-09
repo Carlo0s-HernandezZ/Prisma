@@ -96,12 +96,6 @@ fun Route.biometricRoutes(sessions: SessionStore) {
             )
 
             val (deviceId, user, lastTwoFactor) = device
-            if (!sessions.isTwoFactorFresh(lastTwoFactor)) {
-                return@post call.respondError(
-                    HttpStatusCode.Unauthorized, ApiErrorCodes.TWO_FACTOR_REQUIRED,
-                    "Por seguridad, cada ${ApiRules.TWO_FACTOR_WINDOW_HOURS} horas debes entrar con tu contraseña y el código de Google Authenticator.",
-                )
-            }
 
             dbQuery {
                 DispositivosBiometricosTable.update({ DispositivosBiometricosTable.id eq deviceId }) {

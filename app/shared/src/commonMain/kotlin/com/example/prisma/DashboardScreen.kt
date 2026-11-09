@@ -22,6 +22,8 @@ import com.example.prisma.components.*
 import com.example.prisma.ui.Prisma
 import com.example.prisma.ui.PrismaPalette
 import com.example.prisma.ui.SkeletonBox
+import com.example.prisma.ui.isDesktopLayout
+import com.example.prisma.ui.screenContainer
 
 @Composable
 fun DashboardScreen(
@@ -34,12 +36,8 @@ fun DashboardScreen(
     } else {
         Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
             Column(
-                modifier = Modifier
-                    .widthIn(max = 480.dp)
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.screenContainer(),
+                verticalArrangement = Arrangement.spacedBy(if (isDesktopLayout) 24.dp else 16.dp),
             ) {
                 if (state.errorMessage != null) {
                     ErrorCard(state.errorMessage, onRetry, Modifier.weight(1f))
@@ -50,9 +48,8 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        RadarCard(state)
-                        AlertsCard(state)
-                        Spacer(Modifier.height(BottomNavBarReservedSpace))
+                        DashboardCards(state)
+                        Spacer(Modifier.height(bottomNavBarSpace))
                     }
                 }
             }
@@ -66,11 +63,7 @@ fun DashboardSkeleton(
 ) {
     Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
         Column(
-            modifier = Modifier
-                .widthIn(max = 480.dp)
-                .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.screenContainer(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Header Skeleton
@@ -162,9 +155,34 @@ private fun Header(userName: String, status: FinancialStatus) {
     }
 }
 
+/**
+ * Radar y alertas: apiladas en móvil; lado a lado en escritorio cuando hay al menos 960 dp.
+ */
 @Composable
-private fun RadarCard(state: DashboardUiState) {
-    SoftCard(Modifier.fillMaxWidth()) {
+private fun DashboardCards(state: DashboardUiState) {
+    if (!isDesktopLayout) {
+        RadarCard(state)
+        AlertsCard(state)
+        return
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 960.dp) {
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Top) {
+                RadarCard(state, Modifier.weight(1f).widthIn(max = 620.dp))
+                AlertsCard(state, Modifier.weight(1f))
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                RadarCard(state, Modifier.widthIn(max = 620.dp).align(Alignment.CenterHorizontally))
+                AlertsCard(state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadarCard(state: DashboardUiState, modifier: Modifier = Modifier) {
+    SoftCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 state.radarSeries.sortedBy { it.type.ordinal }.forEach { s ->
@@ -177,15 +195,19 @@ private fun RadarCard(state: DashboardUiState) {
             RadarChart(
                 axes = state.radarAxes,
                 series = state.radarSeries.map { RadarSeries(it.type.color(), it.values) },
-                modifier = Modifier.fillMaxWidth().aspectRatio(1.05f),
+                // En escritorio la tarjeta es más ancha: margen extra para que no se corten las etiquetas.
+                modifier = Modifier
+                    .padding(horizontal = if (isDesktopLayout) 24.dp else 0.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1.05f),
             )
         }
     }
 }
 
 @Composable
-private fun AlertsCard(state: DashboardUiState) {
-    SoftCard(Modifier.fillMaxWidth()) {
+private fun AlertsCard(state: DashboardUiState, modifier: Modifier = Modifier) {
+    SoftCard(modifier.fillMaxWidth()) {
         Column(
             Modifier.fillMaxWidth().padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),

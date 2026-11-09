@@ -4,4 +4,41 @@ html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    /* Crema (manual de identidad): evita un destello blanco mientras carga la app. */
+    background: #F8ECDC;
+}
+
+@media (prefers-color-scheme: dark) {
+    html, body {
+        background: #1B1B1D;
+    }
+}
+
+#prisma-loading {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+/* Etiqueta: mayúsculas con tracking +200 (0.2em), como indica el manual. */
+#prisma-loading span {
+    font-family: "Poppins", "Inter", system-ui, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #2C2B30;
+}
+
+@media (prefers-color-scheme: dark) {
+    #prisma-loading span {
+        color: #F8ECDC;
+    }
+}
+
+/* Cuando Compose ya dibujó la app (agrega un <canvas>), se oculta la pantalla de carga. */
+body:has(canvas) #prisma-loading {
+    display: none;
 }

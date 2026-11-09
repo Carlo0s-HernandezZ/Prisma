@@ -337,6 +337,7 @@ fun App() {
                     .padding(16.dp)
             )
         }
+      }
     }
 }
 
@@ -578,6 +579,24 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (desktop) {
+        // Escritorio (solo web): menú lateral fijo + contenido.
+        Row(Modifier.fillMaxSize().background(Prisma.colors.background)) {
+            SideNavBar(
+                selected = selectedDestination,
+                onSelect = { selectedDestination = it },
+                userEmail = userEmail,
+                onLogout = onLogout,
+            )
+            screens(Modifier.weight(1f).fillMaxHeight())
+        }
+        return
+    }
+
+    Box(Modifier.fillMaxSize().background(Prisma.colors.background)) {
+        screens(Modifier.fillMaxSize())
 
         // --------------------------------------------
         // BARRA INFERIOR

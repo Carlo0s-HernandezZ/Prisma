@@ -27,6 +27,7 @@ object DatosPersonalesTable : Table("datos_personales") {
     val apellido = varchar("apellido", 100)
     val fechaNacimiento = date("fecha_nacimiento").nullable()
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
+    val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -77,6 +78,21 @@ object TarjetasCreditoTable : Table("tarjetas_credito") {
     val banco = varchar("nombre_banco", 100)
     val alias = varchar("alias_tarjeta", 150)
     val ultimosCuatro = varchar("ultimos_cuatro_digitos", 4).nullable()
+    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object DocumentosTarjetaTable : Table("documentos_tarjeta") {
+    val id = uuid("id")
+    val tarjetaId = uuid("tarjeta_id").references(TarjetasCreditoTable.id)
+    val nombreArchivo = varchar("nombre_archivo", 255)
+    val tipoMime = varchar("tipo_mime", 100)
+    val urlODatos = text("url_o_datos")
+    val montoPesos = decimal("monto_pesos", 12, 2).nullable()
+    val periodo = varchar("periodo", 50).nullable()
+    val fechaCorte = varchar("fecha_corte", 50).nullable()
+    val fechaPago = varchar("fecha_pago", 50).nullable()
     val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)

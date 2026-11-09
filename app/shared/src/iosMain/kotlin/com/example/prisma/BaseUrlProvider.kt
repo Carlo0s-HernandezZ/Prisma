@@ -1,3 +1,3 @@
 package com.example.prisma
 
-actual fun defaultBaseUrl(): String = "http://MacBook-Air-de-Juan.local:8080"
+actual fun defaultBaseUrl(): String = "http://192.168.100.32:8080"

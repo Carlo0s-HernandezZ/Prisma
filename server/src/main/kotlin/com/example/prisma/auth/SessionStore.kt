@@ -25,7 +25,7 @@ class SessionStore(
     private val maxCodeAttempts: Int = 5,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    private class Pending(val userId: UUID, val expiresAt: Long) {
+    private class Pending(val userId: UUID, val code: String, val expiresAt: Long) {
         var attempts = 0
     }
 
@@ -46,26 +46,43 @@ class SessionStore(
         sessions.values.removeIf { it.expiresAt <= now }
     }
 
-    fun createPending(userId: UUID): String {
+    fun createPending(userId: UUID, email: String = "test@prisma.com", presetCode: String? = null, application: io.ktor.server.application.Application? = null): String {
         purgeExpired()
         val token = newToken()
-        pending[token] = Pending(userId, clock() + pendingTtlMillis)
+        val code = presetCode ?: "%06d".format((0..999999).random())
+        pending[token] = Pending(userId, code, clock() + pendingTtlMillis)
+
+        if (presetCode == null) {
+            com.example.prisma.services.EmailService.sendEmail(
+                to = email,
+                subject = "Código de Autenticación - Prisma",
+                body = "Tu número de autenticación para ingresar a Prisma es: $code\n\nEste código expira en 5 minutos."+
+                "",
+                application = application,
+            )
+        }
+
         return token
     }
 
     /**
      * Registra un intento de código para el token temporal.
-     * Devuelve el usuario si el token sigue vigente y le quedan intentos; si no, lo invalida y devuelve null.
+     * Devuelve el usuario si el código coincide y el token sigue vigente; si no, incrementa intentos y devuelve null.
      */
-    fun attemptPending(token: String): UUID? {
+    fun attemptPending(token: String, code: String): UUID? {
+        purgeExpired()
         var result: UUID? = null
         pending.computeIfPresent(token) { _, p ->
             if (p.expiresAt <= clock() || p.attempts >= maxCodeAttempts) {
                 null
             } else {
                 p.attempts++
-                result = p.userId
-                p
+                if (p.code == code.trim()) {
+                    result = p.userId
+                    null
+                } else {
+                    p
+                }
             }
         }
         return result
