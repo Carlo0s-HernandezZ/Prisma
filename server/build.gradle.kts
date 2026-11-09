@@ -12,6 +12,7 @@ application {
 
 dependencies {
     api(project(":core"))
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation(libs.logback)
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)

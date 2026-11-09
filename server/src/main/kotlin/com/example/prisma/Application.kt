@@ -9,6 +9,7 @@ import com.example.prisma.routes.cardRoutes
 import com.example.prisma.routes.dashboardRoutes
 import com.example.prisma.routes.incomeRoutes
 import com.example.prisma.routes.profileRoutes
+import com.example.prisma.routes.payrollRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.json
@@ -72,5 +73,6 @@ fun Application.module(
         profileRoutes(sessions)
         dashboardRoutes(sessions)
         incomeRoutes(sessions)
+        payrollRoutes(sessions)
     }
 }
