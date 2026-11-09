@@ -261,7 +261,7 @@ private fun BiometricSettingCard(setting: BiometricSetting) {
                     color = Prisma.colors.onSurface,
                 )
                 Text(
-                    BiometricController.windowExplanation,
+                    "Usa tu huella o Face ID para entrar al instante",
                     style = MaterialTheme.typography.bodySmall,
                     color = Prisma.colors.onSurface.copy(alpha = 0.7f),
                 )

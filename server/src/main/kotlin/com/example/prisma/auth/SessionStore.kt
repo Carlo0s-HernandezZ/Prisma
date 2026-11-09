@@ -56,7 +56,8 @@ class SessionStore(
             com.example.prisma.services.EmailService.sendEmail(
                 to = email,
                 subject = "Código de Autenticación - Prisma",
-                body = "Tu número de autenticación para ingresar a Prisma es: $code\n\nEste código expira en 5 minutos.",
+                body = "Tu número de autenticación para ingresar a Prisma es: $code\n\nEste código expira en 5 minutos."+
+                "",
                 application = application,
             )
         }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,30 +31,33 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.prisma.api.CardDto
 import com.example.prisma.api.IncomeDto
-import com.example.prisma.components.bottomNavBarSpace
+import com.example.prisma.cards.CardUiState
+import com.example.prisma.cards.CardViewModel
 import com.example.prisma.components.SoftCard
+import com.example.prisma.components.bottomNavBarSpace
 import com.example.prisma.income.IncomeUiState
 import com.example.prisma.income.IncomeViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.BoxWithConstraints
 
 private enum class FinancePanel(val title: String) { Cards("Tarjetas"), Incomes("Ingresos") }
 
-/**
- * Sección "Tarjetas": paneles que el usuario desliza horizontalmente.
- * Panel 1: agregar tarjetas de crédito (pendiente). Panel 2: agregar ingresos.
- */
 @Composable
-fun CardsScreen(incomeViewModel: IncomeViewModel, modifier: Modifier = Modifier) {
+fun CardsScreen(
+    cardViewModel: CardViewModel,
+    incomeViewModel: IncomeViewModel,
+    onCardClick: (CardDto) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val panels = FinancePanel.entries
-    // Mientras el panel de tarjetas no esté listo, se abre directamente en Ingresos.
-    val pagerState = rememberPagerState(initialPage = FinancePanel.Incomes.ordinal) { panels.size }
-
+    val pagerState = rememberPagerState(initialPage = FinancePanel.Cards.ordinal) { panels.size }
     val desktop = isDesktopLayout
 
+    val cardState by cardViewModel.state.collectAsStateWithLifecycle()
+    val incomeState by incomeViewModel.state.collectAsStateWithLifecycle()
+
     BoxWithConstraints(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
-        // Escritorio ancho (solo web): ambos paneles lado a lado; deslizar con el mouse es incómodo.
         if (desktop && maxWidth >= 1040.dp) {
             Column(Modifier.screenContainer(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 Text(
@@ -64,12 +68,11 @@ fun CardsScreen(incomeViewModel: IncomeViewModel, modifier: Modifier = Modifier)
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         BrandLabel(FinancePanel.Cards.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
-                        CardsPlaceholderPanel(showSwipeHint = false)
+                        CardPanel(cardState, cardViewModel, onCardClick)
                     }
                     Column(Modifier.weight(1.25f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         BrandLabel(FinancePanel.Incomes.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
-                        val state by incomeViewModel.state.collectAsStateWithLifecycle()
-                        IncomePanel(state, incomeViewModel)
+                        IncomePanel(incomeState, incomeViewModel)
                     }
                 }
             }
@@ -94,18 +97,14 @@ fun CardsScreen(incomeViewModel: IncomeViewModel, modifier: Modifier = Modifier)
                 verticalAlignment = Alignment.Top,
             ) { page ->
                 when (panels[page]) {
-                    FinancePanel.Cards -> CardsPlaceholderPanel()
-                    FinancePanel.Incomes -> {
-                        val state by incomeViewModel.state.collectAsStateWithLifecycle()
-                        IncomePanel(state, incomeViewModel)
-                    }
+                    FinancePanel.Cards -> CardPanel(cardState, cardViewModel, onCardClick)
+                    FinancePanel.Incomes -> IncomePanel(incomeState, incomeViewModel)
                 }
             }
         }
     }
 }
 
-/** Selector "Tarjetas | Ingresos": su indicador sigue al dedo mientras se desliza el panel. */
 @Composable
 private fun PanelSwitcher(pagerState: PagerState, titles: List<String>, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
@@ -154,37 +153,168 @@ private fun PanelSwitcher(pagerState: PagerState, titles: List<String>, modifier
 }
 
 @Composable
-private fun CardsPlaceholderPanel(showSwipeHint: Boolean = true) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick: (CardDto) -> Unit) {
+    state.pendingDelete?.let { card ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelDelete,
+            title = { Text("¿Eliminar tarjeta?") },
+            text = { Text("Se eliminará la tarjeta \"${card.alias}\" (${card.banco}).") },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete) { Text("Eliminar", color = Prisma.colors.statusCritical) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelDelete) { Text("Cancelar", color = Prisma.colors.onSurface) }
+            },
+        )
+    }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // Formulario
         SoftCard(Modifier.fillMaxWidth()) {
-            Column(
-                Modifier.fillMaxWidth().padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(Icons.Filled.CreditCard, contentDescription = null, tint = PrismaPalette.NaranjaPrisma, modifier = Modifier.size(48.dp))
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Agregar tarjeta de crédito",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = Prisma.colors.onSurface,
-                    textAlign = TextAlign.Center,
+                    if (state.editingCard != null) "Editar tarjeta" else "Agregar tarjeta de crédito",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                 )
-                Text(
-                    "Muy pronto podrás registrar tus tarjetas: banco, alias y últimos 4 dígitos.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Prisma.colors.onSurface.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center,
+                OutlinedTextField(
+                    value = state.bankInput,
+                    onValueChange = viewModel::onBankChange,
+                    label = { Text("Banco") },
+                    placeholder = { Text("Ej. BBVA, Nu, Citibanamex") },
+                    singleLine = true,
+                    enabled = !state.isSaving,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                if (showSwipeHint) {
+                OutlinedTextField(
+                    value = state.aliasInput,
+                    onValueChange = viewModel::onAliasChange,
+                    label = { Text("Alias o Apodo") },
+                    placeholder = { Text("Ej. Tarjeta Principal, Gastos") },
+                    singleLine = true,
+                    enabled = !state.isSaving,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.lastFourInput,
+                    onValueChange = viewModel::onLastFourChange,
+                    label = { Text("Últimos 4 dígitos (opcional)") },
+                    placeholder = { Text("1234") },
+                    singleLine = true,
+                    enabled = !state.isSaving,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { viewModel.save() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                state.message?.let {
                     Text(
-                        "Desliza para registrar tus ingresos →",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Prisma.colors.onSurface.copy(alpha = 0.6f),
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (state.isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
                     )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.editingCard != null) {
+                        OutlinedButton(
+                            onClick = viewModel::cancelEditing,
+                            enabled = !state.isSaving,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Text("Cancelar")
+                        }
+                    }
+                    Button(
+                        onClick = viewModel::save,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado),
+                    ) {
+                        if (state.isSaving) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = PrismaPalette.Grafito)
+                        } else {
+                            Text(
+                                if (state.editingCard != null) "Guardar cambios" else "Guardar tarjeta",
+                                color = PrismaPalette.Grafito,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
+
+        // Lista de tarjetas
+        Text(
+            "Tarjetas registradas",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = Prisma.colors.onSurface,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        SoftCard(Modifier.fillMaxWidth()) {
+            when {
+                state.isLoading && state.cards.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(28.dp), color = PrismaPalette.NaranjaPrisma)
+                }
+                state.cards.isEmpty() -> Text(
+                    "Aún no registras tarjetas.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Prisma.colors.onSurface.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                )
+                else -> Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    state.cards.forEachIndexed { index, card ->
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                        CardRow(
+                            card = card,
+                            enabled = !state.isSaving,
+                            onClick = { onCardClick(card) },
+                            onEdit = { viewModel.startEditing(card) },
+                            onDelete = { viewModel.requestDelete(card) }
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(bottomNavBarSpace))
+    }
+}
+
+@Composable
+private fun CardRow(card: CardDto, enabled: Boolean, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                card.alias,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Prisma.colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${card.banco}${card.ultimosCuatro?.let { " •••• $it" } ?: ""}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Prisma.colors.onSurface.copy(alpha = 0.7f),
+            )
+        }
+        IconButton(onClick = onEdit, enabled = enabled) {
+            Icon(Icons.Filled.Edit, contentDescription = "Editar tarjeta ${card.alias}", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
+        }
+        IconButton(onClick = onDelete, enabled = enabled) {
+            Icon(Icons.Filled.Delete, contentDescription = "Eliminar tarjeta ${card.alias}", tint = Prisma.colors.statusCritical)
+        }
     }
 }
 
@@ -208,7 +338,6 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Total del mes
         SoftCard(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Ingresos de este mes", style = MaterialTheme.typography.bodyMedium, color = Prisma.colors.onSurface.copy(alpha = 0.7f))
@@ -220,7 +349,6 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
             }
         }
 
-        // Formulario
         SoftCard(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Agregar ingreso", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
@@ -269,7 +397,6 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
             }
         }
 
-        // Lista de ingresos
         Text(
             "Ingresos registrados",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),

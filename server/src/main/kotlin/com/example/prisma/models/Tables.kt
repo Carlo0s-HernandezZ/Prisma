@@ -83,6 +83,21 @@ object TarjetasCreditoTable : Table("tarjetas_credito") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object DocumentosTarjetaTable : Table("documentos_tarjeta") {
+    val id = uuid("id")
+    val tarjetaId = uuid("tarjeta_id").references(TarjetasCreditoTable.id)
+    val nombreArchivo = varchar("nombre_archivo", 255)
+    val tipoMime = varchar("tipo_mime", 100)
+    val urlODatos = text("url_o_datos")
+    val montoPesos = decimal("monto_pesos", 12, 2).nullable()
+    val periodo = varchar("periodo", 50).nullable()
+    val fechaCorte = varchar("fecha_corte", 50).nullable()
+    val fechaPago = varchar("fecha_pago", 50).nullable()
+    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 object TransaccionesTable : Table("transacciones") {
     val id = uuid("id")
     val tarjetaId = uuid("tarjeta_id").references(TarjetasCreditoTable.id)
