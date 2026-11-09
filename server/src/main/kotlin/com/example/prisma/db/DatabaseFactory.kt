@@ -1,10 +1,13 @@
-   package com.example.prisma.db
+package com.example.prisma.db
 
+import com.example.prisma.models.*
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
     fun init() {
@@ -24,6 +27,17 @@ object DatabaseFactory {
         }
 
         Database.connect(HikariDataSource(config))
+        transaction {
+            SchemaUtils.create(
+                UsuariosTable,
+                DispositivosBiometricosTable,
+                TarjetasCreditoTable,
+                DocumentosTarjetaTable,
+                IngresosTable,
+                TransaccionesTable,
+                CategoriasTable
+            )
+        }
     }
 
     suspend fun <T> dbQuery(block: () -> T): T =

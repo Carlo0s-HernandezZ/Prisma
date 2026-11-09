@@ -62,6 +62,7 @@ kotlin {
             implementation(libs.ktor.clientCio)
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.fragment)
+            implementation(libs.androidx.activity.compose)
         }
         commonMain.dependencies {
             api(project(":core"))

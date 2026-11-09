@@ -24,6 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.prisma.components.BottomNavBar
+import com.example.prisma.cards.CardViewModel
+import com.example.prisma.cards.KtorCardRepository
+import com.example.prisma.cards.CardDetailViewModel
+import com.example.prisma.api.CardDto
+import com.example.prisma.ui.CardDetailScreen
 import com.example.prisma.income.IncomeViewModel
 import com.example.prisma.income.KtorIncomeRepository
 import com.example.prisma.ui.CardsScreen
@@ -249,12 +254,24 @@ fun HomeScreen(
                     )
                 }
                 NavDestination.Cards -> {
+                    var selectedCard by remember { mutableStateOf<CardDto?>(null) }
+                    val cardViewModel = viewModel(key = "cards-$token") { CardViewModel(KtorCardRepository(token)) }
+                    val cardState by cardViewModel.state.collectAsStateWithLifecycle()
                     val incomeViewModel = viewModel(key = "incomes-$token") { IncomeViewModel(KtorIncomeRepository(token)) }
                     val incomeState by incomeViewModel.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(incomeState.sessionExpired) {
-                        if (incomeState.sessionExpired) currentOnLogout()
+                    LaunchedEffect(cardState.sessionExpired, incomeState.sessionExpired) {
+                        if (cardState.sessionExpired || incomeState.sessionExpired) currentOnLogout()
                     }
-                    CardsScreen(incomeViewModel)
+                    val card = selectedCard
+                    if (card != null) {
+                        val detailVm = viewModel(key = "card-detail-${card.id}-$token") { CardDetailViewModel(card, KtorCardRepository(token)) }
+                        CardDetailScreen(
+                            viewModel = detailVm,
+                            onBack = { selectedCard = null }
+                        )
+                    } else {
+                        CardsScreen(cardViewModel, incomeViewModel, onCardClick = { selectedCard = it })
+                    }
                 }
                 else -> ComingSoonScreen(destination)
             }

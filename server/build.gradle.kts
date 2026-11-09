@@ -25,6 +25,7 @@ dependencies {
     implementation(libs.postgresql)
     implementation(libs.bcrypt)
     implementation("com.sun.mail:jakarta.mail:2.0.1")
+    implementation("org.apache.pdfbox:pdfbox:3.0.1")
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }
