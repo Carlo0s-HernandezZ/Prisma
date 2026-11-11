@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class CardDetailUiState(
     val card: CardDto? = null,
@@ -44,22 +46,34 @@ class CardDetailViewModel(
         }
     }
 
+    /** Las subidas se encolan: al elegir varias fotos a la vez se suben una por una, sin perder ninguna. */
+    private val uploadMutex = Mutex()
+    private var pendingUploads = 0
+
     fun uploadDocument(fileName: String, mimeType: String, fileBytes: ByteArray) {
-        if (_state.value.isUploading) return
+        pendingUploads++
         _state.update { it.copy(isUploading = true, message = null) }
         viewModelScope.launch {
-            repository.uploadDocument(card.id, fileName, mimeType, fileBytes).fold(
+            val result = uploadMutex.withLock {
+                repository.uploadDocument(card.id, fileName, mimeType, fileBytes)
+            }
+            pendingUploads--
+            val stillUploading = pendingUploads > 0
+            result.fold(
                 onSuccess = { doc ->
                     _state.update {
                         it.copy(
-                            isUploading = false,
+                            isUploading = stillUploading,
                             documents = listOf(doc) + it.documents,
                             message = "Estado de cuenta procesado y extraído exitosamente.",
                             isError = false
                         )
                     }
                 },
-                onFailure = { e -> fail(e, "No se pudo subir el documento.") }
+                onFailure = { e ->
+                    fail(e, "No se pudo subir \"$fileName\".")
+                    if (stillUploading) _state.update { it.copy(isUploading = true) }
+                }
             )
         }
     }

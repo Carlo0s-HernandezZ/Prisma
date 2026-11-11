@@ -79,7 +79,7 @@ class KtorProfileRepository(
         }
     } catch (e: CancellationException) {
         throw e
-    } catch (_: Exception) {
+    } catch (_: Throwable) { // En web (wasm) un fallo de red llega como kotlin.Error, no Exception.
         Result.failure(ProfileException(ProfileError.Network))
     }
 }

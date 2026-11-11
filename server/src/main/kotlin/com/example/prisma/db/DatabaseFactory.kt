@@ -30,6 +30,7 @@ object DatabaseFactory {
         transaction {
             SchemaUtils.create(
                 UsuariosTable,
+                ConsentimientosUsuarioTable,
                 DispositivosBiometricosTable,
                 TarjetasCreditoTable,
                 DocumentosTarjetaTable,

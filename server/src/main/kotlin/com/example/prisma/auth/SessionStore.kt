@@ -46,47 +46,48 @@ class SessionStore(
         sessions.values.removeIf { it.expiresAt <= now }
     }
 
-    fun createPending(userId: UUID, email: String = "test@prisma.com", presetCode: String? = null, application: io.ktor.server.application.Application? = null): String {
+    /**
+     * Crea el reto 2FA tras validar usuario/contraseña. El código de 6 dígitos lo envía por correo
+     * la ruta de login; aquí solo se genera y se guarda.
+     */
+    fun createChallenge(userId: UUID, presetCode: String? = null): PendingChallenge {
         purgeExpired()
         val token = newToken()
-        val code = presetCode ?: "%06d".format((0..999999).random())
+        val code = presetCode ?: "%06d".format(random.nextInt(1_000_000))
         pending[token] = Pending(userId, code, clock() + pendingTtlMillis)
-
-        if (presetCode == null) {
-            com.example.prisma.services.EmailService.sendEmail(
-                to = email,
-                subject = "Código de Autenticación - Prisma",
-                body = "Tu número de autenticación para ingresar a Prisma es: $code\n\nEste código expira en 5 minutos."+
-                "",
-                application = application,
-            )
-        }
-
-        return token
+        return PendingChallenge(token, code)
     }
 
+    fun createPending(userId: UUID, presetCode: String? = null): String = createChallenge(userId, presetCode).token
+
     /**
-     * Registra un intento de código para el token temporal.
-     * Devuelve el usuario si el código coincide y el token sigue vigente; si no, incrementa intentos y devuelve null.
+     * Revisa el código del token temporal. Distingue "código incorrecto" (puede reintentar)
+     * de "expirado o sin intentos" (debe iniciar sesión otra vez).
      */
-    fun attemptPending(token: String, code: String): UUID? {
+    fun verifyPending(token: String, code: String): PendingResult {
         purgeExpired()
-        var result: UUID? = null
+        var result: PendingResult = PendingResult.Expired
         pending.computeIfPresent(token) { _, p ->
-            if (p.expiresAt <= clock() || p.attempts >= maxCodeAttempts) {
-                null
-            } else {
-                p.attempts++
-                if (p.code == code.trim()) {
-                    result = p.userId
-                    null
-                } else {
-                    p
+            when {
+                p.expiresAt <= clock() || p.attempts >= maxCodeAttempts -> null
+                p.code == code.trim() -> {
+                    result = PendingResult.Success(p.userId)
+                    null // el código se consume
+                }
+                else -> {
+                    p.attempts++
+                    val remaining = maxCodeAttempts - p.attempts
+                    result = if (remaining > 0) PendingResult.WrongCode(remaining) else PendingResult.Expired
+                    if (remaining > 0) p else null
                 }
             }
         }
         return result
     }
+
+    /** Devuelve el usuario si el código es correcto; null si es incorrecto o expiró. */
+    fun attemptPending(token: String, code: String): UUID? =
+        (verifyPending(token, code) as? PendingResult.Success)?.userId
 
     fun completePending(token: String) {
         pending.remove(token)
@@ -126,6 +127,15 @@ class SessionStore(
 }
 
 class SessionInfo(val userId: UUID, val twoFactorAt: Long)
+
+/** [token] viaja al cliente; [code] solo se envía al correo del usuario. */
+class PendingChallenge(val token: String, val code: String)
+
+sealed interface PendingResult {
+    class Success(val userId: UUID) : PendingResult
+    class WrongCode(val attemptsLeft: Int) : PendingResult
+    data object Expired : PendingResult
+}
 
 /**
  * Limita intentos fallidos de login por correo para frenar ataques de fuerza bruta.

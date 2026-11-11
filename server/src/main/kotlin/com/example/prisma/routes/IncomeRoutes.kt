@@ -5,6 +5,7 @@ import com.example.prisma.api.CreateIncomeRequest
 import com.example.prisma.api.IncomeDto
 import com.example.prisma.api.IncomeRules
 import com.example.prisma.api.IncomesSummary
+import com.example.prisma.api.UpdateIncomeRequest
 import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory.dbQuery
 import com.example.prisma.http.authenticatedUser
@@ -17,6 +18,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
@@ -25,6 +27,7 @@ import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -111,6 +114,42 @@ fun Route.incomeRoutes(sessions: SessionStore) {
                 IngresosTable.selectAll().where { IngresosTable.id eq newId }.single().toIncomeDto()
             }
             call.respond(HttpStatusCode.Created, created)
+        }
+
+        put("/{id}") {
+            val userId = call.authenticatedUser(sessions) ?: return@put
+            val incomeId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
+            val req = call.receiveOrBadRequest<UpdateIncomeRequest>() ?: return@put
+            val nombre = parseIncomeName(req.nombre)
+                ?: return@put call.respondError(
+                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST,
+                    "El nombre del ingreso es obligatorio (máximo ${IncomeRules.MAX_NAME_LENGTH} caracteres).",
+                )
+            val amount = parseAmount(req.montoNeto)
+                ?: return@put call.respondError(
+                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST,
+                    "El monto debe ser mayor a 0, con máximo 2 decimales y hasta ${IncomeRules.MAX_AMOUNT}.",
+                )
+
+            // El filtro por usuario impide editar ingresos ajenos aunque se conozca su id.
+            val updated = dbQuery {
+                val owned = (IngresosTable.id eq incomeId) and (IngresosTable.usuarioId eq userId)
+                val current = IngresosTable.selectAll().where { owned }.singleOrNull() ?: return@dbQuery null
+                // Una auditoría valida un monto concreto: si el monto cambia, deja de estar auditado.
+                val amountChanged = current[IngresosTable.montoNeto].compareTo(amount) != 0
+                IngresosTable.update({ owned }) {
+                    it[IngresosTable.nombre] = nombre
+                    it[montoNeto] = amount
+                    if (amountChanged) it[esAuditado] = false
+                }
+                IngresosTable.selectAll().where { owned }.single().toIncomeDto()
+            }
+            if (updated != null) {
+                call.respond(updated)
+            } else {
+                call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Ingreso no encontrado.")
+            }
         }
 
         delete("/{id}") {

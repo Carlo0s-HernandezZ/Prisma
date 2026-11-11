@@ -3,6 +3,7 @@ package com.example.prisma.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.prisma.api.ApiRules
+import com.example.prisma.api.Consent
 import com.example.prisma.api.RegisterResponse
 import com.example.prisma.api.Verify2faResponse
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,12 @@ data class LoginUiState(
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val isRegistering: Boolean = false,
+    /** Casillas de Términos / Aviso de Privacidad marcadas al crear la cuenta. */
+    val consents: Set<Consent> = emptySet(),
+    /** true tras intentar registrarse sin las obligatorias: se resaltan las que faltan. */
+    val showConsentErrors: Boolean = false,
+    /** Ventana emergente de Términos y Condiciones abierta (aparece al pulsar "Registrarse"). */
+    val showConsentDialog: Boolean = false,
     val registerResult: RegisterResponse? = null,
     val session: Verify2faResponse? = null,
     // Recuperación de contraseña
@@ -50,7 +57,57 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     fun togglePasswordVisibility() = _state.update { it.copy(passwordVisible = !it.passwordVisible) }
 
     fun toggleRegisterMode() = _state.update {
-        it.copy(isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials, registerResult = null)
+        it.copy(
+            isRegistering = !it.isRegistering, errorMessage = null, successMessage = null, step = LoginStep.Credentials,
+            registerResult = null, consents = emptySet(), showConsentErrors = false, showConsentDialog = false,
+        )
+    }
+
+    fun toggleConsent(consent: Consent) = _state.update {
+        val updated = if (consent in it.consents) it.consents - consent else it.consents + consent
+        val allRequired = updated.containsAll(Consent.requiredOnes)
+        it.copy(
+            consents = updated,
+            showConsentErrors = it.showConsentErrors && !allRequired,
+        )
+    }
+
+    /** Cierra la ventana de Términos sin registrar (las casillas marcadas se conservan). */
+    fun dismissConsentDialog() = _state.update {
+        if (it.isLoading) it else it.copy(showConsentDialog = false, showConsentErrors = false)
+    }
+
+    /**
+     * Botón "Aceptar y crear cuenta" de la ventana de Términos.
+     * Solo exige las casillas obligatorias; las opcionales se envían tal como el usuario las dejó.
+     */
+    fun confirmRegister() {
+        val s = _state.value
+        if (s.isLoading) return
+        if (!s.consents.containsAll(Consent.requiredOnes)) {
+            _state.update { it.copy(showConsentErrors = true) }
+            return
+        }
+        _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null, showConsentErrors = false) }
+        viewModelScope.launch {
+            repository.register(s.email.trim(), s.password, s.consents).fold(
+                onSuccess = { response ->
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            registerResult = response,
+                            isRegistering = false,
+                            password = "",
+                            consents = emptySet(),
+                            showConsentErrors = false,
+                            showConsentDialog = false,
+                            successMessage = "¡Cuenta creada con éxito!",
+                        )
+                    }
+                },
+                onFailure = { e -> fail(e) },
+            )
+        }
     }
 
     fun dismissRegisterResult() {
@@ -162,23 +219,8 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
             return showError("La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.")
         }
 
-        _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
-        viewModelScope.launch {
-            repository.register(email, s.password).fold(
-                onSuccess = { response ->
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            registerResult = response,
-                            isRegistering = false,
-                            password = "",
-                            successMessage = "¡Cuenta creada con éxito!",
-                        )
-                    }
-                },
-                onFailure = { e -> fail(e) },
-            )
-        }
+        // Correo y contraseña válidos: se abre la ventana de Términos para aceptarlos.
+        _state.update { it.copy(showConsentDialog = true, errorMessage = null, successMessage = null) }
     }
 
     private fun submitCredentials() {
@@ -196,7 +238,7 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
                 onSuccess = { temp ->
                     tempToken = temp
                     _state.update {
-                        it.copy(isLoading = false, step = LoginStep.TwoFactor, password = "", code = "", successMessage = "¡Código enviado a tu correo!")
+                        it.copy(isLoading = false, step = LoginStep.TwoFactor, password = "", code = "", successMessage = "Te enviamos un código a $email.")
                     }
                 },
                 onFailure = { e -> fail(e) },
@@ -210,7 +252,7 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         val temp = tempToken ?: return backToCredentials()
         if (s.code.length != ApiRules.TOTP_CODE_LENGTH) return showError("Ingresa los 6 dígitos del código.")
 
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         viewModelScope.launch {
             repository.verifyTwoFactor(temp, s.code).fold(
                 onSuccess = { session ->
@@ -230,15 +272,21 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         _state.update {
             it.copy(
                 isLoading = false,
+                // Errores del registro (p. ej. correo ya usado) se muestran en el formulario, salvo si faltan casillas.
+                showConsentDialog = it.showConsentDialog && error == AuthError.ConsentRequired,
+                showConsentErrors = it.showConsentDialog && error == AuthError.ConsentRequired,
                 step = if (error == AuthError.SessionExpired) LoginStep.Credentials else it.step,
                 code = if (error == AuthError.InvalidCode) "" else it.code,
+                successMessage = null,
                 errorMessage = when (error) {
                     AuthError.InvalidCredentials -> "Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo."
-                    AuthError.InvalidCode -> "El código de verificación enviado por correo es incorrecto o expiró."
-                    AuthError.SessionExpired -> "La verificación expiró. Inicia sesión de nuevo."
+                    AuthError.InvalidCode -> "Código incorrecto. Revisa el último correo que te enviamos e inténtalo de nuevo."
+                    AuthError.SessionExpired -> "El código expiró o se agotaron los intentos. Inicia sesión de nuevo para recibir uno nuevo."
                     AuthError.EmailTaken -> "Ese correo ya está registrado. Inicia sesión."
                     AuthError.WeakPassword -> "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres."
                     AuthError.TooManyAttempts -> "Demasiados intentos. Espera unos minutos e inténtalo de nuevo."
+                    AuthError.EmailFailed -> "No pudimos enviar el código a tu correo. Inténtalo de nuevo en unos minutos."
+                    AuthError.ConsentRequired -> "Para crear tu cuenta marca las casillas obligatorias."
                     AuthError.Network -> "Sin conexión. Revisa tu internet e inténtalo de nuevo."
                     AuthError.Unknown -> "Algo salió mal. Inténtalo de nuevo."
                 },

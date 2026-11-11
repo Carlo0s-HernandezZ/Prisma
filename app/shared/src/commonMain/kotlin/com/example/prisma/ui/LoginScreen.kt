@@ -6,11 +6,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,9 +33,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,26 +70,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.Image
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.prisma.api.ApiRules
+import com.example.prisma.api.Consent
 import com.example.prisma.api.RegisterResponse
 import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.biometric.BiometricController
 import com.example.prisma.biometric.BiometricKind
 import com.example.prisma.biometric.BiometricUnlockResult
 import kotlinx.coroutines.launch
-import com.example.prisma.getPlatform
-import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import com.example.prisma.auth.KtorAuthRepository
 import com.example.prisma.auth.LoginStep
 import com.example.prisma.auth.LoginUiState
@@ -124,7 +126,7 @@ fun LoginScreen(
                 is BiometricUnlockResult.Success -> currentOnBiometricLogin(result.session)
                 is BiometricUnlockResult.TwoFactorRequired -> viewModel.showNotice(
                     "Pasaron ${ApiRules.TWO_FACTOR_WINDOW_HOURS} horas desde tu último código de verificación. " +
-                        "Entra con tu contraseña y el código de Google Authenticator.",
+                        "Entra con tu contraseña y el código que te enviaremos por correo.",
                     email = result.email,
                 )
                 is BiometricUnlockResult.Disabled -> viewModel.showNotice(result.message)
@@ -150,6 +152,84 @@ fun LoginScreen(
 
     val colors = Prisma.colors
     val isLight = colors.background.luminance() > 0.5f
+
+    // Formulario (registro exitoso, credenciales o código 2FA). Igual en móvil y web.
+    val formContent: @Composable () -> Unit = {
+        if (state.registerResult != null) {
+            RegisterSuccessForm(
+                result = state.registerResult!!,
+                onDismiss = viewModel::dismissRegisterResult
+            )
+        } else {
+            AnimatedContent(
+                targetState = state.step,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+            ) { step ->
+                when (step) {
+                    LoginStep.Credentials -> CredentialsForm(
+                        state = state,
+                        onEmailChange = viewModel::onEmailChange,
+                        onPasswordChange = viewModel::onPasswordChange,
+                        onTogglePassword = viewModel::togglePasswordVisibility,
+                        onSubmit = viewModel::submit,
+                        onToggleRegister = viewModel::toggleRegisterMode,
+                        onForgotPassword = onForgotPassword,
+                        biometricLabel = if (biometricAvailable) biometric?.label else null,
+                        biometricIsFace = biometric?.kind == BiometricKind.FaceId,
+                        biometricBusy = biometricBusy,
+                        onBiometric = ::unlockWithBiometrics,
+                    )
+                    LoginStep.TwoFactor -> TwoFactorForm(
+                        state = state,
+                        onCodeChange = viewModel::onCodeChange,
+                        onSubmit = viewModel::submit,
+                        onBack = viewModel::backToCredentials,
+                    )
+                }
+            }
+        }
+    }
+
+    // Ventana emergente de Términos y Condiciones: aparece al pulsar "Registrarse".
+    if (state.showConsentDialog) {
+        ConsentDialog(
+            accepted = state.consents,
+            showErrors = state.showConsentErrors,
+            errorMessage = state.errorMessage,
+            loading = state.isLoading,
+            onToggle = viewModel::toggleConsent,
+            onConfirm = viewModel::confirmRegister,
+            onDismiss = viewModel::dismissConsentDialog,
+        )
+    }
+
+    if (isDesktopLayout) {
+        // Web en pantalla ancha: panel de marca a la izquierda y formulario a la derecha.
+        // Android e iOS nunca entran aquí (isDesktopLayout solo es true en la web).
+        Row(modifier.fillMaxSize()) {
+            DesktopBrandPanel(Modifier.weight(0.48f).fillMaxHeight())
+            BoxWithConstraints(Modifier.weight(0.52f).fillMaxHeight().background(PanelColor)) {
+                val panelHeight = maxHeight
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Column(
+                        Modifier
+                            .heightIn(min = panelHeight)
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 40.dp, vertical = 48.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        formContent()
+                    }
+                }
+            }
+        }
+        return
+    }
 
     BoxWithConstraints(modifier.fillMaxSize().background(PanelColor)) {
         val paperHeight = (maxHeight * 0.38f).coerceIn(230.dp, 340.dp)
@@ -182,39 +262,7 @@ fun LoginScreen(
                     .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (state.registerResult != null) {
-                    RegisterSuccessForm(
-                        result = state.registerResult!!,
-                        onDismiss = viewModel::dismissRegisterResult
-                    )
-                } else {
-                    AnimatedContent(
-                        targetState = state.step,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    ) { step ->
-                        when (step) {
-                            LoginStep.Credentials -> CredentialsForm(
-                                state = state,
-                                onEmailChange = viewModel::onEmailChange,
-                                onPasswordChange = viewModel::onPasswordChange,
-                                onTogglePassword = viewModel::togglePasswordVisibility,
-                                onSubmit = viewModel::submit,
-                                onToggleRegister = viewModel::toggleRegisterMode,
-                                onForgotPassword = onForgotPassword,
-                                biometricLabel = if (biometricAvailable) biometric?.label else null,
-                                biometricIsFace = biometric?.kind == BiometricKind.FaceId,
-                                biometricBusy = biometricBusy,
-                                onBiometric = ::unlockWithBiometrics,
-                            )
-                            LoginStep.TwoFactor -> TwoFactorForm(
-                                state = state,
-                                onCodeChange = viewModel::onCodeChange,
-                                onSubmit = viewModel::submit,
-                                onBack = viewModel::backToCredentials,
-                            )
-                        }
-                    }
-                }
+                formContent()
 
                 Text(
                     text = "TU FUTURO EN TUS MANOS",
@@ -232,88 +280,12 @@ private fun RegisterSuccessForm(
     result: RegisterResponse,
     onDismiss: () -> Unit
 ) {
-    val isMobile = remember { getPlatform().isMobile }
-    val uriHandler = LocalUriHandler.current
-    @Suppress("DEPRECATION")
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
-    var openFailed by remember { mutableStateOf(false) }
-    val linkStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Header(
-            "¡Cuenta Creada!",
-            if (isMobile) "Agrega tu cuenta a Google Authenticator:" else "Escanea este código con Google Authenticator:",
+            "¡Cuenta creada!",
+            "Cada vez que inicies sesión te enviaremos un código de 6 dígitos a tu correo para verificar que eres tú.",
         )
-
-        // El QR se genera dentro de la app: la clave nunca sale del dispositivo.
-        if (result.otpauthUrl.isNotBlank()) {
-            val qrPainter = rememberQrCodePainter(result.otpauthUrl) { }
-            Box(
-                modifier = Modifier
-                    .size(if (isMobile) 180.dp else 220.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = qrPainter,
-                    contentDescription = "Código QR para configurar Google Authenticator",
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-
-            if (isMobile) {
-                // En el celular no puedes escanear tu propia pantalla: se abre Authenticator directamente.
-                PrimaryPillButton(
-                    "Abrir en Authenticator",
-                    onClick = { openFailed = runCatching { uriHandler.openUri(result.otpauthUrl) }.isFailure },
-                    loading = false,
-                )
-                if (openFailed) {
-                    ErrorBanner("No se encontró una app de autenticación. Instala Google Authenticator o usa la clave de abajo.")
-                }
-            }
-        }
-
-        Text(
-            text = "¿No puedes escanear? En Authenticator elige \"Ingresar clave de configuración\" y escribe:",
-            style = MaterialTheme.typography.bodyMedium,
-            color = InkOnPanel,
-            textAlign = TextAlign.Center,
-        )
-
-        PillField(
-            value = result.secret2fa.chunked(4).joinToString(" "),
-            onValueChange = {},
-            placeholder = "",
-            label = "Clave 2FA de Google Authenticator",
-            textStyle = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-        )
-
-        Text(
-            text = if (copied) "¡Clave copiada!" else "Copiar clave",
-            style = linkStyle,
-            color = InkOnPanel,
-            modifier = Modifier
-                .heightIn(min = 40.dp)
-                .clip(RoundedCornerShape(50))
-                .clickable(role = Role.Button) {
-                    clipboard.setText(AnnotatedString(result.secret2fa))
-                    copied = true
-                }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
-
-        Text(
-            text = "Es única para tu cuenta: no la compartas.",
-            style = MaterialTheme.typography.bodySmall,
-            color = InkOnPanel,
-            textAlign = TextAlign.Center,
-        )
-
-        PrimaryPillButton("Ya la agregué, iniciar sesión", onClick = onDismiss, loading = false)
+        PrimaryPillButton("Iniciar sesión", onClick = onDismiss, loading = false)
     }
 }
 
@@ -362,7 +334,7 @@ private fun CredentialsForm(
             },
         )
 
-        state.errorMessage?.let { ErrorBanner(it) }
+        if (!state.showConsentDialog) state.errorMessage?.let { ErrorBanner(it) }
         state.successMessage?.let { SuccessBanner(it) }
 
         PrimaryPillButton(
@@ -421,7 +393,10 @@ private fun TwoFactorForm(
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Header("Verifica tu identidad", "Ingresa el código de 6 dígitos de tu app de autenticación.")
+        Header(
+            "Verifica tu identidad",
+            "Ingresa el código de 6 dígitos que enviamos a ${state.email.trim()}. Revisa también la carpeta de spam.",
+        )
 
         PillField(
             value = state.code,
@@ -607,5 +582,170 @@ private fun SuccessBanner(message: String) {
     ) {
         Box(Modifier.size(10.dp).background(colors.statusHealthy, CircleShape))
         Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp), color = colors.onSurface)
+    }
+}
+
+/**
+ * Ventana emergente de Términos y Condiciones / Aviso de Privacidad al crear la cuenta.
+ * Solo las casillas obligatorias son necesarias para registrarse; las opcionales quedan a elección del usuario.
+ * Si se intenta continuar sin las obligatorias, se resaltan las que faltan.
+ */
+@Composable
+private fun ConsentDialog(
+    accepted: Set<Consent>,
+    showErrors: Boolean,
+    errorMessage: String?,
+    loading: Boolean,
+    onToggle: (Consent) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = Prisma.colors
+    val desktop = isDesktopLayout
+    val requiredDone = Consent.requiredOnes.count { it in accepted }
+    val requiredTotal = Consent.requiredOnes.size
+    val canContinue = requiredDone == requiredTotal
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnClickOutside = !loading,
+            dismissOnBackPress = !loading,
+            usePlatformDefaultWidth = !desktop,
+        ),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = colors.surface,
+            contentColor = colors.onSurface,
+            shadowElevation = 12.dp,
+            modifier = if (desktop) Modifier.widthIn(max = 560.dp).fillMaxWidth() else Modifier.fillMaxWidth().widthIn(max = 460.dp),
+        ) {
+            Column(Modifier.padding(if (desktop) 28.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BrandLabel("Crear cuenta", color = PrismaPalette.NaranjaAmbar)
+                Text(
+                    "Términos y Condiciones",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+                )
+                Text(
+                    "Para crear tu cuenta acepta las casillas obligatorias. Las opcionales puedes dejarlas sin marcar.",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
+                    color = colors.onSurface.copy(alpha = 0.8f),
+                )
+
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.background)
+                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    ConsentGroupTitle("Obligatorias ($requiredDone de $requiredTotal)")
+                    Consent.requiredOnes.forEach { consent ->
+                        ConsentRow(consent, checked = consent in accepted, highlight = showErrors && consent !in accepted, onToggle = onToggle)
+                    }
+                    Box(Modifier.height(6.dp))
+                    ConsentGroupTitle("Opcionales (no afectan el servicio)")
+                    Consent.optionalOnes.forEach { consent ->
+                        ConsentRow(consent, checked = consent in accepted, highlight = false, onToggle = onToggle)
+                    }
+                }
+
+                when {
+                    showErrors && !canContinue ->
+                        ErrorBanner("Marca las ${requiredTotal - requiredDone} casillas obligatorias que faltan para continuar.")
+                    errorMessage != null -> ErrorBanner(errorMessage)
+                }
+
+                ConsentConfirmButton(
+                    text = "Aceptar y crear cuenta",
+                    enabledLook = canContinue,
+                    loading = loading,
+                    onClick = onConfirm,
+                )
+                Text(
+                    text = "Cancelar",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+                    color = colors.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(50))
+                        .clickable(enabled = !loading, role = Role.Button, onClick = onDismiss)
+                        .padding(vertical = 14.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Botón principal de la ventana: se ve atenuado hasta marcar las obligatorias (al pulsarlo resalta las que faltan). */
+@Composable
+private fun ConsentConfirmButton(text: String, enabledLook: Boolean, loading: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(shape)
+            .background(if (enabledLook) ButtonColor else ButtonColor.copy(alpha = 0.45f))
+            .clickable(enabled = !loading, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = InkOnPanel, strokeWidth = 2.5.dp)
+        } else {
+            Text(
+                text,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = if (enabledLook) InkOnPanel else InkOnPanel.copy(alpha = 0.6f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConsentGroupTitle(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.SemiBold),
+        color = Prisma.colors.onSurface.copy(alpha = 0.75f),
+        modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 2.dp),
+    )
+}
+
+@Composable
+private fun ConsentRow(consent: Consent, checked: Boolean, highlight: Boolean, onToggle: (Consent) -> Unit) {
+    val ink = Prisma.colors.onSurface
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (highlight) PrismaPalette.NaranjaPrisma.copy(alpha = 0.16f) else Color.Transparent)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle(consent) })
+            .padding(end = 8.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null, // el clic lo maneja toda la fila (área táctil más grande)
+            colors = CheckboxDefaults.colors(
+                checkedColor = PrismaPalette.NaranjaPrisma,
+                uncheckedColor = if (highlight) PrismaPalette.NaranjaAmbar else ink.copy(alpha = 0.7f),
+                checkmarkColor = PrismaPalette.Grafito,
+            ),
+            modifier = Modifier.padding(12.dp).size(20.dp),
+        )
+        Text(
+            consent.text + if (highlight) "  (obligatoria)" else "",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
+            color = ink,
+            fontWeight = if (highlight) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }

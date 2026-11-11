@@ -1,7 +1,10 @@
 package com.example.prisma.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -13,6 +16,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -21,6 +33,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -30,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.prisma.api.CardDto
 import com.example.prisma.api.IncomeDto
@@ -37,6 +53,13 @@ import com.example.prisma.cards.CardUiState
 import com.example.prisma.cards.CardViewModel
 import com.example.prisma.components.SoftCard
 import com.example.prisma.components.bottomNavBarSpace
+import com.example.prisma.income.AmountRange
+import com.example.prisma.income.IncomeEditorState
+import com.example.prisma.income.IncomeFilter
+import com.example.prisma.income.availableMonths
+import com.example.prisma.income.availableYears
+import com.example.prisma.income.monthLabel
+import com.example.prisma.income.sumAmounts
 import com.example.prisma.income.IncomeUiState
 import com.example.prisma.income.IncomeViewModel
 import kotlinx.coroutines.launch
@@ -334,6 +357,10 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
         )
     }
 
+    state.editor?.let { editor ->
+        IncomeEditDialog(editor = editor, ingresos = state.ingresos, viewModel = viewModel)
+    }
+
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -349,31 +376,67 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
             }
         }
 
+        // En la web (pantalla ancha) los campos y el botón van en una sola línea; en móvil, apilados.
+        val desktop = isDesktopLayout
+        val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
+            OutlinedTextField(
+                value = state.nameInput,
+                onValueChange = viewModel::onNameChange,
+                label = { Text("Nombre del ingreso") },
+                placeholder = { Text("Ej. Salario, Freelance, Renta") },
+                singleLine = true,
+                enabled = !state.isSaving,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                modifier = fieldModifier,
+            )
+        }
+        val amountField: @Composable (Modifier) -> Unit = { fieldModifier ->
+            OutlinedTextField(
+                value = state.amountInput,
+                onValueChange = viewModel::onAmountChange,
+                // En la fila de la web el campo es angosto: etiqueta corta para que no se parta en 2 líneas.
+                label = { Text(if (desktop) "Monto (MXN)" else "Monto neto (MXN)", maxLines = 1) },
+                prefix = { Text("$ ") },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                enabled = !state.isSaving,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { viewModel.save() }),
+                modifier = fieldModifier,
+            )
+        }
+        val saveButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+            Button(
+                onClick = viewModel::save,
+                enabled = !state.isSaving,
+                modifier = buttonModifier,
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado),
+            ) {
+                if (state.isSaving) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = PrismaPalette.Grafito)
+                } else {
+                    Text("Guardar ingreso", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         SoftCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().padding(if (desktop) 20.dp else 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text("Agregar ingreso", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-                OutlinedTextField(
-                    value = state.nameInput,
-                    onValueChange = viewModel::onNameChange,
-                    label = { Text("Nombre del ingreso") },
-                    placeholder = { Text("Ej. Salario, Freelance, Renta") },
-                    singleLine = true,
-                    enabled = !state.isSaving,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.amountInput,
-                    onValueChange = viewModel::onAmountChange,
-                    label = { Text("Monto neto (MXN)") },
-                    prefix = { Text("$ ") },
-                    placeholder = { Text("0.00") },
-                    singleLine = true,
-                    enabled = !state.isSaving,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { viewModel.save() }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (desktop) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                        nameField(Modifier.weight(1.3f))
+                        amountField(Modifier.weight(1f))
+                        saveButton(Modifier.height(56.dp))
+                    }
+                } else {
+                    nameField(Modifier.fillMaxWidth())
+                    amountField(Modifier.fillMaxWidth())
+                }
                 state.message?.let {
                     Text(
                         it,
@@ -381,28 +444,34 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
                         color = if (state.isError) Prisma.colors.statusCritical else Prisma.colors.statusHealthy,
                     )
                 }
-                Button(
-                    onClick = viewModel::save,
-                    enabled = !state.isSaving,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado),
-                ) {
-                    if (state.isSaving) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = PrismaPalette.Grafito)
-                    } else {
-                        Text("Guardar ingreso", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
-                    }
-                }
+                if (!desktop) saveButton(Modifier.fillMaxWidth().height(48.dp))
             }
         }
 
-        Text(
-            "Ingresos registrados",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = Prisma.colors.onSurface,
-            modifier = Modifier.padding(start = 4.dp),
-        )
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Ingresos registrados",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Prisma.colors.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (state.ingresos.isNotEmpty()) {
+                IncomeFilterButton(
+                    filter = state.filter,
+                    ingresos = state.ingresos,
+                    onSelect = viewModel::setFilter,
+                )
+            }
+        }
+        val visible = remember(state.ingresos, state.filter) { state.ingresos.filter(state.filter::matches) }
+        if (state.filter != IncomeFilter.All && state.ingresos.isNotEmpty()) {
+            ActiveFilterBar(
+                filter = state.filter,
+                count = visible.size,
+                total = remember(visible) { sumAmounts(visible) },
+                onClear = { viewModel.setFilter(IncomeFilter.All) },
+            )
+        }
         SoftCard(Modifier.fillMaxWidth()) {
             when {
                 state.isLoading && state.ingresos.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -415,10 +484,42 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(24.dp),
                 )
+                visible.isEmpty() -> Column(
+                    Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "No hay ingresos para \"${state.filter.label}\".",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Prisma.colors.onSurface.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                    )
+                    TextButton(onClick = { viewModel.setFilter(IncomeFilter.All) }) {
+                        Text("Ver todos", color = PrismaPalette.NaranjaAmbar, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                desktop -> Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    IncomeTableHeader()
+                    visible.forEach { income ->
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                        IncomeTableRow(
+                            income,
+                            enabled = !state.isSaving,
+                            onEdit = { viewModel.openEditor(income) },
+                            onDelete = { viewModel.requestDelete(income) },
+                        )
+                    }
+                }
                 else -> Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    state.ingresos.forEachIndexed { index, income ->
+                    visible.forEachIndexed { index, income ->
                         if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
-                        IncomeRow(income, enabled = !state.isSaving, onDelete = { viewModel.requestDelete(income) })
+                        IncomeRow(
+                            income,
+                            enabled = !state.isSaving,
+                            onEdit = { viewModel.openEditor(income) },
+                            onDelete = { viewModel.requestDelete(income) },
+                        )
                     }
                 }
             }
@@ -429,7 +530,7 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
 }
 
 @Composable
-private fun IncomeRow(income: IncomeDto, enabled: Boolean, onDelete: () -> Unit) {
+private fun IncomeRow(income: IncomeDto, enabled: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -453,19 +554,422 @@ private fun IncomeRow(income: IncomeDto, enabled: Boolean, onDelete: () -> Unit)
                 color = Prisma.colors.onSurface.copy(alpha = 0.6f),
             )
         }
-        if (income.esAuditado) {
-            Text(
-                "Auditado",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = Prisma.colors.statusHealthy,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Prisma.colors.statusHealthy.copy(alpha = 0.12f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+        if (income.esAuditado) AuditedChip()
+        IconButton(onClick = onEdit, enabled = enabled) {
+            Icon(Icons.Filled.Edit, contentDescription = "Editar ingreso ${income.nombre}", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
         }
         IconButton(onClick = onDelete, enabled = enabled) {
             Icon(Icons.Filled.Delete, contentDescription = "Eliminar ingreso ${income.nombre}", tint = Prisma.colors.statusCritical)
+        }
+    }
+}
+
+/** Etiqueta "Auditado" (misma que en la lista de ingresos). */
+@Composable
+private fun AuditedChip() {
+    Text(
+        "Auditado",
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+        color = Prisma.colors.statusHealthy,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Prisma.colors.statusHealthy.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/**
+ * Ventana emergente para editar ingresos.
+ * Paso 1: el usuario elige qué ingreso editar. Paso 2: cambia nombre y monto.
+ */
+@Composable
+private fun IncomeEditDialog(editor: IncomeEditorState, ingresos: List<IncomeDto>, viewModel: IncomeViewModel) {
+    val colors = Prisma.colors
+    val desktop = isDesktopLayout
+    Dialog(
+        onDismissRequest = viewModel::closeEditor,
+        properties = DialogProperties(
+            dismissOnClickOutside = !editor.isSaving,
+            dismissOnBackPress = !editor.isSaving,
+            usePlatformDefaultWidth = !desktop,
+        ),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = colors.surface,
+            contentColor = colors.onSurface,
+            shadowElevation = 12.dp,
+            // Web: ancho máximo de 600 dp centrado. Móvil: igual que antes.
+            modifier = if (desktop) Modifier.widthIn(max = 600.dp).fillMaxWidth() else Modifier.fillMaxWidth().widthIn(max = 460.dp),
+        ) {
+            Column(Modifier.padding(if (desktop) 28.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                BrandLabel("Ingresos", color = PrismaPalette.NaranjaAmbar)
+
+                val selected = editor.selected
+                if (selected == null) {
+                    // ---------- Paso 1: elegir ingreso ----------
+                    Text(
+                        "¿Qué ingreso quieres editar?",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+                    )
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(colors.background)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        ingresos.forEachIndexed { index, income ->
+                            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = colors.onSurface.copy(alpha = 0.08f))
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(role = Role.Button) { viewModel.selectForEdit(income) }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        income.nombre,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        formatMxn(income.montoNeto),
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                        color = colors.statusHealthy,
+                                    )
+                                    Text(
+                                        formatIsoDateTime(income.fechaRegistro),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.onSurface.copy(alpha = 0.6f),
+                                    )
+                                }
+                                if (income.esAuditado) AuditedChip()
+                                Icon(
+                                    Icons.Filled.ChevronRight,
+                                    contentDescription = "Editar ${income.nombre}",
+                                    tint = PrismaPalette.NaranjaPrisma,
+                                )
+                            }
+                        }
+                    }
+                    TextButton(onClick = viewModel::closeEditor, modifier = Modifier.align(Alignment.End)) {
+                        Text("Cerrar", color = colors.onSurface)
+                    }
+                } else {
+                    // ---------- Paso 2: editar ----------
+                    Text(
+                        "Editar ingreso",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+                    )
+                    Text(
+                        "Registrado el ${formatIsoDateTime(selected.fechaRegistro)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurface.copy(alpha = 0.6f),
+                    )
+                    val editName: @Composable (Modifier) -> Unit = { fieldModifier ->
+                        OutlinedTextField(
+                            value = editor.nameInput,
+                            onValueChange = viewModel::onEditNameChange,
+                            label = { Text("Nombre del ingreso") },
+                            placeholder = { Text("Ej. Salario, Freelance, Renta") },
+                            singleLine = true,
+                            enabled = !editor.isSaving,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                            modifier = fieldModifier,
+                        )
+                    }
+                    val editAmount: @Composable (Modifier) -> Unit = { fieldModifier ->
+                        OutlinedTextField(
+                            value = editor.amountInput,
+                            onValueChange = viewModel::onEditAmountChange,
+                            label = { Text("Monto neto (MXN)") },
+                            prefix = { Text("$ ") },
+                            placeholder = { Text("0.00") },
+                            singleLine = true,
+                            enabled = !editor.isSaving,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { viewModel.saveEdit() }),
+                            modifier = fieldModifier,
+                        )
+                    }
+                    if (desktop) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            editName(Modifier.weight(1.3f))
+                            editAmount(Modifier.weight(1f))
+                        }
+                    } else {
+                        editName(Modifier.fillMaxWidth())
+                        editAmount(Modifier.fillMaxWidth())
+                    }
+                    if (selected.esAuditado) {
+                        Text(
+                            "Este ingreso está auditado. Si cambias el monto, dejará de estarlo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PrismaPalette.NaranjaAmbar,
+                        )
+                    }
+                    editor.error?.let {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.statusCritical)
+                    }
+                    val saveEditButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+                        Button(
+                            onClick = viewModel::saveEdit,
+                            enabled = !editor.isSaving,
+                            modifier = buttonModifier,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrismaPalette.Dorado),
+                        ) {
+                            if (editor.isSaving) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = PrismaPalette.Grafito)
+                            } else {
+                                Text("Guardar cambios", color = PrismaPalette.Grafito, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    val chooseOther: @Composable () -> Unit = {
+                        if (ingresos.size > 1) {
+                            TextButton(onClick = viewModel::backToSelection, enabled = !editor.isSaving) {
+                                Text("Elegir otro ingreso", color = PrismaPalette.NaranjaAmbar, fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            Spacer(Modifier)
+                        }
+                    }
+                    val cancel: @Composable () -> Unit = {
+                        TextButton(onClick = viewModel::closeEditor, enabled = !editor.isSaving) {
+                            Text("Cancelar", color = colors.onSurface)
+                        }
+                    }
+                    if (desktop) {
+                        // Web: acciones en una fila, el botón principal a la derecha.
+                        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            chooseOther()
+                            Spacer(Modifier.weight(1f))
+                            cancel()
+                            Spacer(Modifier.width(8.dp))
+                            saveEditButton(Modifier.height(44.dp).widthIn(min = 180.dp))
+                        }
+                    } else {
+                        saveEditButton(Modifier.fillMaxWidth().height(48.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            chooseOther()
+                            cancel()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private enum class FilterMenuLevel { Root, Month, Year, Amount }
+
+/** Botón con lista desplegable para filtrar los ingresos por mes, año o monto. */
+@Composable
+private fun IncomeFilterButton(filter: IncomeFilter, ingresos: List<IncomeDto>, onSelect: (IncomeFilter) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var level by remember { mutableStateOf(FilterMenuLevel.Root) }
+    val months = remember(ingresos) { availableMonths(ingresos) }
+    val years = remember(ingresos) { availableYears(ingresos) }
+    val active = filter != IncomeFilter.All
+
+    fun choose(f: IncomeFilter) {
+        onSelect(f)
+        expanded = false
+    }
+
+    Box {
+        OutlinedButton(
+            onClick = { level = FilterMenuLevel.Root; expanded = true },
+            shape = RoundedCornerShape(50),
+            border = BorderStroke(1.dp, PrismaPalette.NaranjaPrisma),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (active) PrismaPalette.NaranjaPrisma.copy(alpha = 0.12f) else Color.Transparent,
+            ),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            modifier = Modifier.heightIn(min = 36.dp),
+        ) {
+            Icon(Icons.Filled.FilterList, contentDescription = null, tint = PrismaPalette.NaranjaAmbar, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (active) filter.label else "Filtrar",
+                color = Prisma.colors.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 140.dp),
+            )
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = "Abrir filtros", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Prisma.colors.surface,
+            // Web: ancho fijo para que el menú no cambie de tamaño al entrar a cada categoría.
+            modifier = if (isDesktopLayout) Modifier.heightIn(max = 380.dp).width(260.dp) else Modifier.heightIn(max = 380.dp),
+        ) {
+            @Composable
+            fun Header(title: String) {
+                DropdownMenuItem(
+                    text = { BrandLabel(title, color = PrismaPalette.NaranjaAmbar) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Prisma.colors.onSurface) },
+                    onClick = { level = FilterMenuLevel.Root },
+                )
+                HorizontalDivider(color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+            }
+
+            @Composable
+            fun Option(text: String, option: IncomeFilter) {
+                val selected = filter == option
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text,
+                            color = Prisma.colors.onSurface,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    },
+                    trailingIcon = if (selected) {
+                        { Icon(Icons.Filled.Check, contentDescription = "Seleccionado", tint = PrismaPalette.NaranjaPrisma) }
+                    } else null,
+                    onClick = { choose(option) },
+                )
+            }
+
+            @Composable
+            fun Category(text: String, icon: ImageVector, target: FilterMenuLevel) {
+                DropdownMenuItem(
+                    text = { Text(text, color = Prisma.colors.onSurface) },
+                    leadingIcon = { Icon(icon, contentDescription = null, tint = PrismaPalette.NaranjaAmbar) },
+                    trailingIcon = { Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Prisma.colors.onSurface.copy(alpha = 0.6f)) },
+                    onClick = { level = target },
+                )
+            }
+
+            when (level) {
+                FilterMenuLevel.Root -> {
+                    Option("Todos los ingresos", IncomeFilter.All)
+                    HorizontalDivider(color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                    Category("Por mes", Icons.Filled.CalendarMonth, FilterMenuLevel.Month)
+                    Category("Por año", Icons.Filled.DateRange, FilterMenuLevel.Year)
+                    Category("Por monto", Icons.Filled.Payments, FilterMenuLevel.Amount)
+                }
+                FilterMenuLevel.Month -> {
+                    Header("Por mes")
+                    months.forEach { Option(monthLabel(it), IncomeFilter.Month(it)) }
+                }
+                FilterMenuLevel.Year -> {
+                    Header("Por año")
+                    years.forEach { Option(it, IncomeFilter.Year(it)) }
+                }
+                FilterMenuLevel.Amount -> {
+                    Header("Por monto")
+                    AmountRange.entries.forEach { Option(it.label, IncomeFilter.Amount(it)) }
+                }
+            }
+        }
+    }
+}
+
+/** Resumen del filtro activo: cuántos ingresos coinciden, su suma y la opción de quitarlo. */
+@Composable
+private fun ActiveFilterBar(filter: IncomeFilter, count: Int, total: String, onClear: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PrismaPalette.NaranjaPrisma.copy(alpha = 0.10f))
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                filter.label,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Prisma.colors.onSurface,
+            )
+            Text(
+                "${if (count == 1) "1 ingreso" else "$count ingresos"} · ${formatMxn(total)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Prisma.colors.onSurface.copy(alpha = 0.7f),
+            )
+        }
+        IconButton(onClick = onClear) {
+            Icon(Icons.Filled.Close, contentDescription = "Quitar filtro", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
+        }
+    }
+}
+
+// ---------- Tabla de ingresos (solo web, pantalla ancha) ----------
+
+private const val COL_NAME = 1.6f
+private const val COL_AMOUNT = 1f
+private const val COL_DATE = 1.2f
+
+@Composable
+private fun IncomeTableHeader() {
+    val ink = Prisma.colors.onSurface.copy(alpha = 0.55f)
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BrandLabel("Concepto", color = ink, modifier = Modifier.weight(COL_NAME))
+        BrandLabel("Monto", color = ink, modifier = Modifier.weight(COL_AMOUNT))
+        BrandLabel("Registro", color = ink, modifier = Modifier.weight(COL_DATE))
+        BrandLabel("Acciones", color = ink, modifier = Modifier.width(96.dp))
+    }
+}
+
+@Composable
+private fun IncomeTableRow(income: IncomeDto, enabled: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .hoverable(interaction)
+            .background(if (hovered) PrismaPalette.NaranjaPrisma.copy(alpha = 0.06f) else Color.Transparent)
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(Modifier.weight(COL_NAME), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                income.nombre,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = Prisma.colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (income.esAuditado) AuditedChip()
+        }
+        Text(
+            formatMxn(income.montoNeto),
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            color = Prisma.colors.statusHealthy,
+            modifier = Modifier.weight(COL_AMOUNT),
+        )
+        Text(
+            formatIsoDateTime(income.fechaRegistro),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Prisma.colors.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.weight(COL_DATE),
+        )
+        Row(Modifier.width(96.dp)) {
+            IconButton(onClick = onEdit, enabled = enabled) {
+                Icon(Icons.Filled.Edit, contentDescription = "Editar ingreso ${income.nombre}", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
+            }
+            IconButton(onClick = onDelete, enabled = enabled) {
+                Icon(Icons.Filled.Delete, contentDescription = "Eliminar ingreso ${income.nombre}", tint = Prisma.colors.statusCritical)
+            }
         }
     }
 }

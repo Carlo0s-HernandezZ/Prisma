@@ -1,5 +1,6 @@
 package com.example.prisma.models
 
+import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
@@ -124,4 +125,20 @@ object DispositivosBiometricosTable : Table("dispositivos_biometricos") {
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * Constancia de lo que aceptó cada usuario al crear su cuenta: una fila por casilla (marcada o no),
+ * con la versión del documento y la fecha. La crea DatabaseFactory automáticamente si no existe.
+ */
+object ConsentimientosUsuarioTable : Table("consentimientos_usuario") {
+    val usuarioId = uuid("usuario_id").references(UsuariosTable.id, onDelete = ReferenceOption.CASCADE)
+    /** Nombre de la casilla (enum Consent del módulo core), p. ej. "TerminosUso". */
+    val consentimiento = varchar("consentimiento", 40)
+    val aceptado = bool("aceptado")
+    val obligatorio = bool("obligatorio")
+    val versionDocumento = varchar("version_documento", 20)
+    val fecha = timestamp("fecha").defaultExpression(CurrentTimestamp)
+
+    override val primaryKey = PrimaryKey(usuarioId, consentimiento)
 }
