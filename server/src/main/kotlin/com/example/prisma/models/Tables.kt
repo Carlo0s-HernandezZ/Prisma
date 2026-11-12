@@ -1,6 +1,5 @@
 package com.example.prisma.models
 
-import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
@@ -24,9 +23,8 @@ object UsuariosTable : Table("usuarios") {
 object DatosPersonalesTable : Table("datos_personales") {
     val id = integer("id").autoIncrement()
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
-    // Cifrados con AES-256-GCM (DataCipher): el texto cifrado en Base64 ocupa más que el nombre original.
-    val nombre = varchar("nombre", 512)
-    val apellido = varchar("apellido", 512)
+    val nombre = varchar("nombre", 100)
+    val apellido = varchar("apellido", 100)
     val fechaNacimiento = date("fecha_nacimiento").nullable()
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
     val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()
@@ -80,21 +78,10 @@ object TarjetasCreditoTable : Table("tarjetas_credito") {
     val banco = varchar("nombre_banco", 100)
     val alias = varchar("alias_tarjeta", 150)
     val ultimosCuatro = varchar("ultimos_cuatro_digitos", 4).nullable()
-    val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
-
-    override val primaryKey = PrimaryKey(id)
-}
-
-object DocumentosTarjetaTable : Table("documentos_tarjeta") {
-    val id = uuid("id")
-    val tarjetaId = uuid("tarjeta_id").references(TarjetasCreditoTable.id)
-    val nombreArchivo = varchar("nombre_archivo", 255)
-    val tipoMime = varchar("tipo_mime", 100)
-    val urlODatos = text("url_o_datos")
-    val montoPesos = decimal("monto_pesos", 12, 2).nullable()
-    val periodo = varchar("periodo", 50).nullable()
-    val fechaCorte = varchar("fecha_corte", 50).nullable()
-    val fechaPago = varchar("fecha_pago", 50).nullable()
+    val diaCorte = integer("dia_corte").nullable()
+    val horaNotificacionCorte = varchar("hora_notificacion_corte", 5).nullable()
+    val diaPago = integer("dia_pago").nullable()
+    val horaNotificacionPago = varchar("hora_notificacion_pago", 5).nullable()
     val fechaRegistro = timestamp("fecha_registro").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
@@ -126,20 +113,4 @@ object DispositivosBiometricosTable : Table("dispositivos_biometricos") {
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
 
     override val primaryKey = PrimaryKey(id)
-}
-
-/**
- * Constancia de lo que aceptó cada usuario al crear su cuenta: una fila por casilla (marcada o no),
- * con la versión del documento y la fecha. La crea DatabaseFactory automáticamente si no existe.
- */
-object ConsentimientosUsuarioTable : Table("consentimientos_usuario") {
-    val usuarioId = uuid("usuario_id").references(UsuariosTable.id, onDelete = ReferenceOption.CASCADE)
-    /** Nombre de la casilla (enum Consent del módulo core), p. ej. "TerminosUso". */
-    val consentimiento = varchar("consentimiento", 40)
-    val aceptado = bool("aceptado")
-    val obligatorio = bool("obligatorio")
-    val versionDocumento = varchar("version_documento", 20)
-    val fecha = timestamp("fecha").defaultExpression(CurrentTimestamp)
-
-    override val primaryKey = PrimaryKey(usuarioId, consentimiento)
 }
