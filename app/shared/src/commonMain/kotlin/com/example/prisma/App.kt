@@ -1,6 +1,9 @@
 package com.example.prisma
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.prisma.ui.SplashScreen
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -78,7 +81,17 @@ private data class UserSession(val token: String, val email: String, val viaBiom
 
 @Composable
 fun App() {
+    // Animación de inicio «TDSOFT presenta · Prisma» (una vez por apertura; sobrevive a la rotación).
+    var splashDone by rememberSaveable { mutableStateOf(false) }
     AppTheme {
+        Crossfade(targetState = splashDone, animationSpec = tween(350), label = "splash") { done ->
+            if (done) AppContent() else SplashScreen(onFinished = { splashDone = true })
+        }
+    }
+}
+
+@Composable
+private fun AppContent() {
       ProvideLayoutMode {
         var session by remember { mutableStateOf<UserSession?>(null) }
         val authRepository = remember { KtorAuthRepository() }
@@ -192,7 +205,6 @@ fun App() {
             SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(16.dp))
         }
       }
-    }
 }
 
 @Composable

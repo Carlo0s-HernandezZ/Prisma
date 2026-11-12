@@ -1,5 +1,17 @@
 package com.example.prisma.ui
 
+import com.example.prisma.termsPageUrl
+import com.example.prisma.getPlatform
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -153,6 +165,7 @@ fun LoginScreen(
 
     val colors = Prisma.colors
     val isLight = colors.background.luminance() > 0.5f
+    val isWeb = remember { getPlatform().isWeb }
 
     // Formulario (registro exitoso, credenciales o código 2FA). Igual en móvil y web.
     val formContent: @Composable () -> Unit = {
@@ -219,7 +232,8 @@ fun LoginScreen(
     if (isDesktopLayout) {
         // Web en pantalla ancha: panel de marca a la izquierda y formulario a la derecha.
         // Android e iOS nunca entran aquí (isDesktopLayout solo es true en la web).
-        Row(modifier.fillMaxSize()) {
+        Column(modifier.fillMaxSize()) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
             DesktopBrandPanel(Modifier.weight(0.48f).fillMaxHeight())
             BoxWithConstraints(Modifier.weight(0.52f).fillMaxHeight().background(PanelColor)) {
                 val panelHeight = maxHeight
@@ -240,6 +254,8 @@ fun LoginScreen(
                     }
                 }
             }
+        }
+        WebLegalFooter()
         }
         return
     }
@@ -283,6 +299,9 @@ fun LoginScreen(
                     color = InkOnPanel,
                     modifier = Modifier.padding(top = 24.dp),
                 )
+                if (isWeb) {
+                    Box(Modifier.padding(top = 12.dp)) { LegalLinks(color = InkOnPanel, fontSize = 12.sp, centered = true) }
+                }
             }
         }
     }
@@ -732,6 +751,8 @@ private fun ConsentDialog(
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
                     color = colors.onSurface.copy(alpha = 0.8f),
                 )
+                // Documento completo (página pública): se abre en el navegador.
+                LegalLinks(color = PrismaPalette.NaranjaAmbar, fontSize = 13.sp, leading = "Léelos aquí: ")
 
                 Column(
                     Modifier
@@ -847,5 +868,62 @@ private fun ConsentRow(consent: Consent, checked: Boolean, highlight: Boolean, o
             color = ink,
             fontWeight = if (highlight) FontWeight.SemiBold else FontWeight.Normal,
         )
+    }
+}
+
+/**
+ * Enlaces a la página pública de Términos y Condiciones (Parte A) y Aviso de Privacidad (Parte B).
+ * En la web abre una pestaña nueva; en Android/iOS abre el navegador del teléfono.
+ */
+@Composable
+private fun LegalLinks(color: Color, fontSize: TextUnit, leading: String = "", centered: Boolean = false) {
+    val uriHandler = LocalUriHandler.current
+    val linkStyle = SpanStyle(color = color, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)
+    val text = buildAnnotatedString {
+        if (leading.isNotEmpty()) withStyle(SpanStyle(color = Prisma.colors.onSurface.copy(alpha = 0.8f))) { append(leading) }
+        withLink(LinkAnnotation.Clickable("terminos", TextLinkStyles(linkStyle)) { openSafely(uriHandler, termsPageUrl("parte-a")) }) {
+            append("Términos y Condiciones")
+        }
+        withStyle(SpanStyle(color = color)) { append("  ·  ") }
+        withLink(LinkAnnotation.Clickable("privacidad", TextLinkStyles(linkStyle)) { openSafely(uriHandler, termsPageUrl("parte-b")) }) {
+            append("Aviso de Privacidad")
+        }
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = fontSize, lineHeight = fontSize * 1.5f),
+        color = color,
+        textAlign = if (centered) TextAlign.Center else TextAlign.Start,
+        modifier = Modifier.semantics { contentDescription = "Leer Términos y Condiciones y Aviso de Privacidad" },
+    )
+}
+
+/** Abrir el navegador puede fallar (sin navegador instalado, etc.): no debe cerrar la app. */
+private fun openSafely(uriHandler: UriHandler, url: String) {
+    runCatching { uriHandler.openUri(url) }
+}
+
+/** Pie de la portada web: empresa, lema y enlaces legales públicos. */
+@Composable
+private fun WebLegalFooter() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(PrismaPalette.Grafito)
+            .padding(horizontal = 40.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            "© 2026 TDSoft Company · PRISMA",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = PrismaPalette.Crema.copy(alpha = 0.75f),
+        )
+        Text(
+            "TU FUTURO EN TUS MANOS",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp),
+            color = PrismaPalette.Dorado,
+        )
+        LegalLinks(color = PrismaPalette.Crema, fontSize = 12.sp)
     }
 }
