@@ -221,3 +221,35 @@ class SecurityHeadersRegressionTest {
         assertNotEquals(HttpStatusCode.InternalServerError, preflight.status)
     }
 }
+
+/** Recuperación de contraseña: el código de 6 dígitos no se puede adivinar por fuerza bruta. */
+class PasswordResetStoreTest {
+    @Test
+    fun codeIsSingleUseAndLimitedToFiveAttempts() {
+        val store = com.example.prisma.auth.PasswordResetStore()
+        val code = store.createCode("Ana@Prisma.test")
+        val wrong = if (code == "000000") "111111" else "000000"
+        repeat(4) { assertIs<com.example.prisma.auth.ResetResult.WrongCode>(store.verifyAndConsume("ana@prisma.test", wrong)) }
+        // Quinto intento fallido: el código se invalida y ni el correcto sirve ya.
+        assertEquals(com.example.prisma.auth.ResetResult.Expired, store.verifyAndConsume("ana@prisma.test", wrong))
+        assertEquals(com.example.prisma.auth.ResetResult.Expired, store.verifyAndConsume("ana@prisma.test", code))
+
+        val second = store.createCode("ana@prisma.test")
+        assertEquals(com.example.prisma.auth.ResetResult.Success, store.verifyAndConsume("ANA@prisma.test", second))
+        assertEquals(com.example.prisma.auth.ResetResult.Expired, store.verifyAndConsume("ana@prisma.test", second), "un solo uso")
+    }
+
+    @Test
+    fun codeExpiresAndRequestsAreLimited() {
+        var now = 0L
+        val store = com.example.prisma.auth.PasswordResetStore(clock = { now })
+        val code = store.createCode("ana@prisma.test")
+        now += 16 * 60_000L
+        assertEquals(com.example.prisma.auth.ResetResult.Expired, store.verifyAndConsume("ana@prisma.test", code))
+
+        repeat(3) { assertTrue(store.allowRequest("bob@prisma.test")) }
+        assertFalse(store.allowRequest("bob@prisma.test"), "4.ª solicitud en 15 min se bloquea")
+        now += 16 * 60_000L
+        assertTrue(store.allowRequest("bob@prisma.test"), "se libera al pasar la ventana")
+    }
+}

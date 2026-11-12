@@ -14,6 +14,7 @@ import com.example.prisma.api.Verify2faRequest
 import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.auth.LoginRateLimiter
 import com.example.prisma.auth.PasswordResetStore
+import com.example.prisma.auth.ResetResult
 import com.example.prisma.auth.PendingResult
 import com.example.prisma.auth.Passwords
 import com.example.prisma.auth.SessionStore
@@ -206,6 +207,13 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
             if (!isValidEmail(email)) {
                 return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Correo inválido.")
             }
+            // Se limita antes de consultar la BD: la respuesta es igual exista o no la cuenta.
+            if (!passwordResetStore.allowRequest(email)) {
+                return@post call.respondError(
+                    HttpStatusCode.TooManyRequests, ApiErrorCodes.TOO_MANY_ATTEMPTS,
+                    "Ya pediste varios códigos. Espera 15 minutos o usa el último que te llegó.",
+                )
+            }
 
             val userExists = dbQuery {
                 UsuariosTable.selectAll()
@@ -239,10 +247,18 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                 )
             }
 
-            val valid = passwordResetStore.verifyAndConsume(email, code)
-            if (!valid) {
-                return@post call.respondError(
-                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Código de recuperación inválido o expirado.",
+            if (!isValidEmail(email)) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Correo inválido.")
+            }
+            when (val result = passwordResetStore.verifyAndConsume(email, code)) {
+                ResetResult.Success -> Unit
+                is ResetResult.WrongCode -> return@post call.respondError(
+                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_CODE,
+                    "Código incorrecto. Te quedan ${result.attemptsLeft} intentos.",
+                )
+                ResetResult.Expired -> return@post call.respondError(
+                    HttpStatusCode.Gone, ApiErrorCodes.SESSION_EXPIRED,
+                    "El código expiró o se agotaron los intentos. Solicita uno nuevo.",
                 )
             }
 
@@ -255,6 +271,8 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
             }
 
             if (updated > 0) {
+                // Con la contraseña nueva ya puede entrar aunque antes la cuenta se hubiera bloqueado por intentos fallidos.
+                loginLimiter.reset(email)
                 call.respond(HttpStatusCode.OK, GeneralResponse("Contraseña actualizada exitosamente."))
             } else {
                 call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Usuario no encontrado.")

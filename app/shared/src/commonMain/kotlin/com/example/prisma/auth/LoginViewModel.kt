@@ -141,11 +141,21 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
                 onSuccess = { msg ->
                     _state.update { it.copy(isLoading = false, resetStep = 2, successMessage = msg) }
                 },
-                onFailure = {
-                    _state.update { it.copy(isLoading = false, errorMessage = "Error al solicitar recuperación.") }
+                onFailure = { e ->
+                    val message = when ((e as? AuthException)?.error) {
+                        AuthError.Network -> "Sin conexión. Revisa tu internet e inténtalo de nuevo."
+                        AuthError.TooManyAttempts -> "Ya pediste varios códigos. Espera 15 minutos o usa el último que te llegó."
+                        else -> "No se pudo enviar el código. Inténtalo de nuevo."
+                    }
+                    _state.update { it.copy(isLoading = false, errorMessage = message) }
                 },
             )
         }
+    }
+
+    /** Paso 2 → paso 1: para pedir otro código o corregir el correo. */
+    fun backToRequestCode() = _state.update {
+        if (it.isLoading) it else it.copy(resetStep = 1, resetCode = "", newPassword = "", errorMessage = null, successMessage = null)
     }
 
     fun submitResetPassword() {
@@ -163,17 +173,37 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         viewModelScope.launch {
             repository.resetPassword(email, code, pass).fold(
-                onSuccess = { msg ->
+                onSuccess = {
                     _state.update {
                         it.copy(
                             isLoading = false,
                             isForgotPassword = false,
+                            email = email, // listo para entrar con la contraseña nueva
+                            password = "",
+                            resetCode = "",
+                            newPassword = "",
+                            resetStep = 1,
+                            errorMessage = null,
                             successMessage = "¡Contraseña actualizada! Ya puedes iniciar sesión.",
                         )
                     }
                 },
-                onFailure = {
-                    _state.update { it.copy(isLoading = false, errorMessage = "Código inválido o expirado.") }
+                onFailure = { e ->
+                    when ((e as? AuthException)?.error) {
+                        // Código caducado o sin intentos: se vuelve al paso 1 para pedir otro.
+                        AuthError.SessionExpired -> _state.update {
+                            it.copy(isLoading = false, resetStep = 1, resetCode = "", successMessage = null,
+                                errorMessage = "El código expiró o se agotaron los intentos. Solicita uno nuevo.")
+                        }
+                        else -> _state.update {
+                            it.copy(isLoading = false, errorMessage = when ((e as? AuthException)?.error) {
+                                AuthError.InvalidCode -> "Código incorrecto. Revisa el último correo que te enviamos."
+                                AuthError.WeakPassword -> "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres."
+                                AuthError.Network -> "Sin conexión. Revisa tu internet e inténtalo de nuevo."
+                                else -> "No se pudo cambiar la contraseña. Inténtalo de nuevo."
+                            })
+                        }
+                    }
                 },
             )
         }

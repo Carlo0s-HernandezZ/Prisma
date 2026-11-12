@@ -101,7 +101,8 @@ private val ButtonColor = PrismaPalette.Dorado
 fun LoginScreen(
     onLoginSuccess: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
-    onForgotPassword: () -> Unit = {},
+    /** null (por defecto): abre el formulario de recuperación de esta misma pantalla. */
+    onForgotPassword: (() -> Unit)? = null,
     /** Login con huella / Face ID (sin 2FA, dentro de la ventana de 24 h). */
     onBiometricLogin: (Verify2faResponse) -> Unit = {},
     biometric: BiometricController? = null,
@@ -160,6 +161,18 @@ fun LoginScreen(
                 result = state.registerResult!!,
                 onDismiss = viewModel::dismissRegisterResult
             )
+        } else if (state.isForgotPassword) {
+            ForgotPasswordForm(
+                state = state,
+                onEmailChange = viewModel::onForgotEmailChange,
+                onCodeChange = viewModel::onResetCodeChange,
+                onPasswordChange = viewModel::onNewPasswordChange,
+                onTogglePassword = viewModel::togglePasswordVisibility,
+                onSubmitEmail = viewModel::submitForgotPassword,
+                onSubmitReset = viewModel::submitResetPassword,
+                onResend = viewModel::backToRequestCode,
+                onBack = viewModel::toggleForgotPassword,
+            )
         } else {
             AnimatedContent(
                 targetState = state.step,
@@ -173,7 +186,7 @@ fun LoginScreen(
                         onTogglePassword = viewModel::togglePasswordVisibility,
                         onSubmit = viewModel::submit,
                         onToggleRegister = viewModel::toggleRegisterMode,
-                        onForgotPassword = onForgotPassword,
+                        onForgotPassword = onForgotPassword ?: viewModel::toggleForgotPassword,
                         biometricLabel = if (biometricAvailable) biometric.label else null,
                         biometricIsFace = biometric?.kind == BiometricKind.FaceId,
                         biometricBusy = biometricBusy,
@@ -380,6 +393,93 @@ private fun CredentialsForm(
             }
         }
     }
+}
+
+/**
+ * Recuperación de contraseña en dos pasos:
+ * 1) correo → el servidor envía un código de 6 dígitos;
+ * 2) código + contraseña nueva.
+ */
+@Composable
+private fun ForgotPasswordForm(
+    state: LoginUiState,
+    onEmailChange: (String) -> Unit,
+    onCodeChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onTogglePassword: () -> Unit,
+    onSubmitEmail: () -> Unit,
+    onSubmitReset: () -> Unit,
+    onResend: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Header(
+            title = "Recuperar contraseña",
+            subtitle = if (state.resetStep == 1) {
+                "Escribe tu correo y te enviaremos un código para crear una contraseña nueva."
+            } else {
+                "Escribe el código de 6 dígitos que enviamos a ${state.forgotEmail.trim()} y tu nueva contraseña."
+            },
+        )
+
+        if (state.resetStep == 1) {
+            PillField(
+                value = state.forgotEmail,
+                onValueChange = onEmailChange,
+                placeholder = "Correo electrónico",
+                label = "Correo electrónico",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmitEmail() }),
+            )
+            state.errorMessage?.let { ErrorBanner(it) }
+            PrimaryPillButton(text = "Enviar código", onClick = onSubmitEmail, loading = state.isLoading)
+        } else {
+            PillField(
+                value = state.resetCode,
+                onValueChange = onCodeChange,
+                placeholder = "000000",
+                label = "Código de recuperación",
+                textStyle = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp, letterSpacing = 8.sp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            )
+            PillField(
+                value = state.newPassword,
+                onValueChange = onPasswordChange,
+                placeholder = "Nueva contraseña (mín. ${ApiRules.MIN_PASSWORD_LENGTH})",
+                label = "Nueva contraseña",
+                visualTransformation = if (state.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmitReset() }),
+                trailing = {
+                    Icon(
+                        imageVector = if (state.passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (state.passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
+                        tint = Prisma.colors.onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onTogglePassword).padding(8.dp),
+                    )
+                },
+            )
+            state.errorMessage?.let { ErrorBanner(it) }
+            state.successMessage?.let { SuccessBanner(it) }
+            PrimaryPillButton(text = "Cambiar contraseña", onClick = onSubmitReset, loading = state.isLoading)
+            LinkText("¿No te llegó? Reenviar código", onResend)
+        }
+
+        LinkText("Volver a iniciar sesión", onBack)
+    }
+}
+
+@Composable
+private fun LinkText(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+        color = InkOnPanel,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    )
 }
 
 @Composable
