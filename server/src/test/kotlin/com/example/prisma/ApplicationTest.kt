@@ -10,7 +10,7 @@ import kotlin.test.*
 class ApplicationTest {
 
     private fun withApp(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
-        application { module(initDatabase = false) }
+        application { module(initDatabase = false, enforceHttps = false) }
         block()
     }
 

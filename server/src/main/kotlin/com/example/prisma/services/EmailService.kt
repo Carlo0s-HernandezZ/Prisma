@@ -1,5 +1,6 @@
 package com.example.prisma.services
 
+import com.example.prisma.config.AppConfig
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
 import jakarta.mail.Authenticator
@@ -11,7 +12,6 @@ import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.Properties
 
 /**
@@ -19,28 +19,23 @@ import java.util.Properties
  *
  * Configuración (las variables de entorno tienen prioridad):
  *  - SMTP_HOST (por defecto smtp.gmail.com), SMTP_PORT (587), SMTP_USER, SMTP_PASSWORD, SMTP_FROM.
- *  - O bien el archivo `server/smtp.properties` (ignorado por git) con las mismas llaves.
+ *  - O bien `server/.env` / `server/smtp.properties` (ignorados por git) con las mismas llaves (ver [AppConfig]).
  *    Ver `server/smtp.properties.example`.
  *
  * Con Gmail, SMTP_PASSWORD debe ser una "contraseña de aplicación", no la contraseña normal.
  *
- * Si no hay credenciales, el correo se SIMULA: el mensaje se escribe en la consola del servidor
- * (solo para desarrollo).
+ * Si no hay credenciales y PRISMA_ENV=development, el correo se SIMULA en la consola del servidor.
+ * En producción no se simula: el envío falla y nunca se escribe el código en los logs.
  */
 object EmailService {
 
-    private val fileConfig: Properties by lazy {
-        val props = Properties()
-        // `./gradlew :server:run` se ejecuta con la carpeta server/ como directorio de trabajo.
-        listOf(File("smtp.properties"), File("server/smtp.properties"))
-            .firstOrNull(File::isFile)
-            ?.inputStream()?.use(props::load)
-        props
-    }
+    private fun setting(key: String): String? = AppConfig.get(key)
 
-    private fun setting(key: String): String? =
-        System.getenv(key)?.takeIf(String::isNotBlank)
-            ?: fileConfig.getProperty(key)?.trim()?.takeIf(String::isNotEmpty)
+    /** Oculta el correo en los logs: "carlos@gmail.com" → "c***@gmail.com". */
+    internal fun maskEmail(email: String): String {
+        val at = email.indexOf('@')
+        return if (at <= 0) "***" else email.first() + "***" + email.substring(at)
+    }
 
     val isConfigured: Boolean
         get() = !setting("SMTP_USER").isNullOrBlank() && !setting("SMTP_PASSWORD").isNullOrBlank()
@@ -48,11 +43,11 @@ object EmailService {
     /** Avisa al arrancar si los códigos se enviarán de verdad o solo se mostrarán en consola. */
     fun logStartupStatus(application: Application) {
         if (isConfigured) {
-            application.log.info("Correo SMTP configurado: ${setting("SMTP_USER")} vía ${setting("SMTP_HOST") ?: "smtp.gmail.com"}.")
+            application.log.info("Correo SMTP configurado: ${maskEmail(setting("SMTP_USER").orEmpty())} vía ${setting("SMTP_HOST") ?: "smtp.gmail.com"}.")
         } else {
             application.log.warn(
-                "SMTP NO configurado: los códigos 2FA NO se enviarán por correo, solo se mostrarán en esta consola. " +
-                    "Define SMTP_USER y SMTP_PASSWORD o crea server/smtp.properties.",
+                "SMTP NO configurado: los códigos 2FA NO se enviarán por correo (solo con PRISMA_ENV=development se muestran en consola). " +
+                    "Define SMTP_USER y SMTP_PASSWORD en server/.env.",
             )
         }
     }
@@ -73,6 +68,11 @@ object EmailService {
         val from = setting("SMTP_FROM") ?: username
 
         if (username.isBlank() || password.isBlank()) {
+            // En producción nunca se escribe el contenido del correo (lleva códigos de acceso) en los logs.
+            if (!AppConfig.isDevelopment) {
+                application?.log?.error("SMTP no configurado: no se pudo enviar el correo a ${maskEmail(to)}.")
+                return false
+            }
             val logMsg = "\n================ EMAIL SIMULADO (SMTP no configurado) ================\n" +
                 "PARA: $to\nASUNTO: $subject\nMENSAJE:\n$body\n" +
                 "======================================================================"
@@ -106,12 +106,11 @@ object EmailService {
             }
 
             Transport.send(message)
-            application?.log?.info("Correo enviado a $to")
+            application?.log?.info("Correo enviado a ${maskEmail(to)}")
             true
         } catch (e: Exception) {
             // No se registra el cuerpo: contiene códigos de verificación/recuperación.
-            application?.log?.error("Error al enviar correo a $to (asunto: $subject): ${e.message}", e)
-                ?: println("[ERROR ENVIO CORREO] Falló SMTP para $to (asunto: $subject): ${e.message}")
+            application?.log?.error("Error al enviar correo a ${maskEmail(to)} (asunto: $subject): ${e::class.simpleName}")
             false
         }
     }

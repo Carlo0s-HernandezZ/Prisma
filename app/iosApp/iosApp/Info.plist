@@ -8,7 +8,11 @@
 	<string>Prisma usa Face ID para que entres a tu cuenta sin escribir tu contraseña.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- Sin cargas HTTP arbitrarias: solo HTTPS. El servidor local (IP de la red) se valida con
+		     Certificate Pinning en PlatformHttpClient.ios.kt. -->
 		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
 </dict>

@@ -1,0 +1,19 @@
+$ curl -sk -D - -o /dev/null https://localhost:8443/api/v1/cards
+HTTP/2 401 
+vary: Origin
+content-security-policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+x-frame-options: DENY
+x-content-type-options: nosniff
+referrer-policy: no-referrer
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-site
+cache-control: no-store
+server: Prisma
+strict-transport-security: max-age=31536000; includeSubDomains
+content-length: 65
+content-type: application/json
+
+$ curl -s -D - -o /dev/null http://localhost:8080/api/v1/cards   (HTTP: solo redirección 301, sin HSTS)
+HTTP/1.1 301 Moved Permanently
+Location: https://localhost:8443/api/v1/cards

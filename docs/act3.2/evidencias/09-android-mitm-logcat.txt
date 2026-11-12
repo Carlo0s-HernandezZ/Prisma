@@ -1,0 +1,5 @@
+$ adb logcat | grep PRISMA   (servidor impostor con certificado distinto en 192.168.100.31:8443)
+11-11 17:39:36.883 15652 15652 I System.out: PRISMA auth network error: SSLHandshakeException
+Using default temp DH parameters
+ACCEPT
+802112F201000000:error:0A000416:SSL routines:ssl3_read_bytes:tls alert certificate unknown:ssl/record/rec_layer_s3.c:923:SSL alert number 46

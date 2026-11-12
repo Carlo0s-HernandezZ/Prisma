@@ -1,5 +1,6 @@
 package com.example.prisma.routes
 
+import com.example.prisma.http.TextValidation
 import com.example.prisma.api.ApiErrorCodes
 import com.example.prisma.api.CreateIncomeRequest
 import com.example.prisma.api.IncomeDto
@@ -51,7 +52,8 @@ internal fun parseAmount(raw: String): BigDecimal? {
 
 /** Nombre del ingreso sin espacios sobrantes; null si queda vacío o excede VARCHAR(100). */
 internal fun parseIncomeName(raw: String): String? =
-    raw.trim().replace(Regex("\\s+"), " ").takeIf { it.isNotEmpty() && it.length <= IncomeRules.MAX_NAME_LENGTH }
+    raw.trim().replace(Regex("\\s+"), " ")
+        .takeIf { it.isNotEmpty() && it.length <= IncomeRules.MAX_NAME_LENGTH && TextValidation.isLabel(it) }
 
 private fun ResultRow.toIncomeDto(): IncomeDto {
     val registro = this[IngresosTable.fechaRegistro]
@@ -94,7 +96,7 @@ fun Route.incomeRoutes(sessions: SessionStore) {
             val nombre = parseIncomeName(req.nombre)
                 ?: return@post call.respondError(
                     HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST,
-                    "El nombre del ingreso es obligatorio (máximo ${IncomeRules.MAX_NAME_LENGTH} caracteres).",
+                    "El nombre del ingreso es obligatorio: letras, números y . , ( ) / # & + - (máximo ${IncomeRules.MAX_NAME_LENGTH} caracteres).",
                 )
             val amount = parseAmount(req.montoNeto)
                 ?: return@post call.respondError(
@@ -124,7 +126,7 @@ fun Route.incomeRoutes(sessions: SessionStore) {
             val nombre = parseIncomeName(req.nombre)
                 ?: return@put call.respondError(
                     HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST,
-                    "El nombre del ingreso es obligatorio (máximo ${IncomeRules.MAX_NAME_LENGTH} caracteres).",
+                    "El nombre del ingreso es obligatorio: letras, números y . , ( ) / # & + - (máximo ${IncomeRules.MAX_NAME_LENGTH} caracteres).",
                 )
             val amount = parseAmount(req.montoNeto)
                 ?: return@put call.respondError(

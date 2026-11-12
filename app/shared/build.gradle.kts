@@ -5,6 +5,10 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.Properties
+import java.security.MessageDigest
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.util.Base64
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -53,12 +57,35 @@ val serverHost: Provider<String> = providers.environmentVariable("PRISMA_SERVER_
     .orElse(provider { localProps.getProperty("prisma.serverHost")?.trim()?.takeIf(String::isNotEmpty) })
     .orElse(providers.of(LanIpSource::class) {})
 
+val serverCertFile = rootProject.file("server/certs/prisma-cert.pem")
+
 val generateServerConfig = tasks.register("generateServerConfig") {
     val host = serverHost
+    val certFile = serverCertFile
     val outDir = layout.buildDirectory.dir("generated/serverConfig/kotlin")
     inputs.property("serverHost", host)
+    inputs.files(certFile).optional()
     outputs.dir(outDir)
     doLast {
+        // Certificate Pinning: las apps solo aceptan el certificado TLS de Prisma y su llave pública.
+        // El pin es SHA-256 de la llave pública (SPKI), mismo formato que OkHttp CertificatePinner y curl --pinnedpubkey.
+        require(certFile.isFile) {
+            "Falta server/certs/prisma-cert.pem. Genera el certificado con server/certs/generate-cert.sh"
+        }
+        val pem = certFile.readText().trim()
+        val cert = certFile.inputStream().use {
+            CertificateFactory.getInstance("X.509").generateCertificate(it) as X509Certificate
+        }
+        val spkiSha256 = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded),
+        )
+        val sanIps = cert.subjectAlternativeNames.orEmpty().map { it[1].toString() }
+        if (host.get() !in sanIps) {
+            logger.warn(
+                "Prisma: el certificado TLS no incluye ${host.get()} (incluye $sanIps). " +
+                    "Ejecuta server/certs/generate-cert.sh y vuelve a compilar.",
+            )
+        }
         val file = outDir.get().file("com/example/prisma/ServerConfig.kt").asFile
         file.parentFile.mkdirs()
         file.writeText(
@@ -68,10 +95,20 @@ val generateServerConfig = tasks.register("generateServerConfig") {
             |// ARCHIVO GENERADO por app/shared/build.gradle.kts (generateServerConfig). No editar.
             |// IP de la computadora con el servidor, detectada al compilar.
             |const val SERVER_HOST = "${host.get()}"
-            |const val SERVER_PORT = 8080
+            |
+            |/** Puerto HTTPS (TLS 1.2/1.3). El puerto HTTP 8080 solo redirige a HTTPS. */
+            |const val SERVER_PORT = 8443
+            |
+            |/** Pin SHA-256 de la llave pública del certificado del servidor (Certificate Pinning). */
+            |const val SERVER_CERT_PIN = "sha256/$spkiSha256"
+            |
+            |/** Certificado público del servidor (autofirmado): única raíz de confianza de las apps. */
+            |const val SERVER_CERT_PEM = ${"\"\"\""}
+            |$pem
+            |${"\"\"\""}
             |""".trimMargin(),
         )
-        logger.lifecycle("Prisma: la app se conectará al servidor en http://${host.get()}:8080")
+        logger.lifecycle("Prisma: la app se conectará a https://${host.get()}:8443 (pin sha256/$spkiSha256)")
     }
 }
 
@@ -128,10 +165,15 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            implementation(libs.ktor.clientCio)
+            // OkHttp: motor HTTP de Android con CertificatePinner (anclaje de certificado).
+            implementation("io.ktor:ktor-client-okhttp:${libs.versions.ktor.get()}")
+            // EncryptedSharedPreferences (AES-256) para las preferencias locales.
+            implementation("androidx.security:security-crypto:1.1.0")
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.fragment)
-            implementation(libs.androidx.activity.compose)
+
+            // Selector de archivos nativo de Android
+            implementation("androidx.activity:activity-compose:1.13.0")
         }
         commonMain.dependencies {
             api(project(":core"))

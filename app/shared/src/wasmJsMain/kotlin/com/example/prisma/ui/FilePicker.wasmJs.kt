@@ -11,6 +11,7 @@ import kotlin.io.encoding.Base64
  * como (nombre, tipo MIME, contenido en Base64). El Base64 se arma por bloques para no rebasar
  * la pila con archivos grandes.
  */
+@OptIn(ExperimentalWasmJsInterop::class)
 private fun openBrowserFileDialog(accept: String, multiple: Boolean, onFile: (String, String, String) -> Unit): Unit = js(
     """{
     var input = document.createElement('input');

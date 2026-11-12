@@ -133,7 +133,7 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
     fun submitForgotPassword() {
         val email = _state.value.forgotEmail.trim()
         if (!EMAIL_REGEX.matches(email)) {
-            return _state.update { it.copy(errorMessage = "Escribe un correo válido.") }.let { Unit }
+            return _state.update { it.copy(errorMessage = "Escribe un correo válido.") }
         }
         _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
         viewModelScope.launch {
@@ -154,10 +154,10 @@ class LoginViewModel(private val repository: AuthRepository) : ViewModel() {
         val code = s.resetCode.trim()
         val pass = s.newPassword
         if (code.length != 6) {
-            return _state.update { it.copy(errorMessage = "Ingresa el código de 6 dígitos.") }.let { Unit }
+            return _state.update { it.copy(errorMessage = "Ingresa el código de 6 dígitos.") }
         }
         if (pass.length < ApiRules.MIN_PASSWORD_LENGTH) {
-            return _state.update { it.copy(errorMessage = "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.") }.let { Unit }
+            return _state.update { it.copy(errorMessage = "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.") }
         }
 
         _state.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }

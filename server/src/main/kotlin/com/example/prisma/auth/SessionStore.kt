@@ -1,7 +1,17 @@
 package com.example.prisma.auth
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.JWTVerifier
+import com.auth0.jwt.algorithms.Algorithm
+import com.auth0.jwt.exceptions.JWTVerificationException
+import com.example.prisma.config.AppConfig
 import java.security.SecureRandom
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Base64
+import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -15,8 +25,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Cada sesión recuerda cuándo se verificó el código 2FA ([SessionInfo.twoFactorAt]) y nunca
  * dura más de [twoFactorWindowMillis] desde ese momento, aunque provenga de un login biométrico.
  *
- * Los tokens son 256 bits aleatorios (no adivinables). Al reiniciar el servidor
- * todas las sesiones se pierden y los usuarios deben volver a iniciar sesión.
+ * El token de acceso es un **JWT firmado con HMAC-SHA256** (llave JWT_SECRET de server/.env) con
+ * emisor, audiencia, sujeto (id del usuario), `jti` aleatorio de 256 bits y expiración. Además de
+ * validar firma y expiración, el `jti` debe seguir registrado en el servidor: así el cierre de sesión
+ * revoca el token aunque su firma siga siendo válida. Cada sesión tiene también un token anti-CSRF.
+ *
+ * El token temporal del 2FA sigue siendo un valor aleatorio de 256 bits (no adivinable).
+ * Al reiniciar el servidor todas las sesiones se pierden y los usuarios deben volver a iniciar sesión.
  */
 class SessionStore(
     private val pendingTtlMillis: Long = 5 * 60_000L,
@@ -24,12 +39,28 @@ class SessionStore(
     val twoFactorWindowMillis: Long = 24 * 60 * 60_000L,
     private val maxCodeAttempts: Int = 5,
     private val clock: () -> Long = System::currentTimeMillis,
+    jwtSecret: String? = AppConfig.get("JWT_SECRET"),
 ) {
+    private val algorithm: Algorithm = Algorithm.HMAC256(
+        jwtSecret?.takeIf { it.length >= 32 }
+            ?: ByteArray(64).also(SecureRandom()::nextBytes).let { Base64.getEncoder().encodeToString(it) },
+    )
+
+    /** Reloj del verificador ligado a [clock] (las pruebas pueden simular el paso del tiempo). */
+    private val verifier: JWTVerifier = (JWT.require(algorithm)
+        .withIssuer(JWT_ISSUER)
+        .withAudience(JWT_AUDIENCE) as JWTVerifier.BaseVerification)
+        .build(object : Clock() {
+            override fun instant(): Instant = Instant.ofEpochMilli(clock())
+            override fun getZone(): ZoneId = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId?): Clock = this
+        })
+
     private class Pending(val userId: UUID, val code: String, val expiresAt: Long) {
         var attempts = 0
     }
 
-    private class Session(val userId: UUID, val expiresAt: Long, val twoFactorAt: Long)
+    private class Session(val userId: UUID, val expiresAt: Long, val twoFactorAt: Long, val csrfToken: String)
 
     private val pending = ConcurrentHashMap<String, Pending>()
     private val sessions = ConcurrentHashMap<String, Session>()
@@ -99,19 +130,35 @@ class SessionStore(
      */
     fun createSession(userId: UUID, twoFactorAt: Long = clock()): String {
         purgeExpired()
-        val token = newToken()
-        val expiresAt = minOf(clock() + sessionTtlMillis, twoFactorAt + twoFactorWindowMillis)
-        sessions[token] = Session(userId, expiresAt, twoFactorAt)
-        return token
+        val jti = newToken()
+        val now = clock()
+        val expiresAt = minOf(now + sessionTtlMillis, twoFactorAt + twoFactorWindowMillis)
+        sessions[jti] = Session(userId, expiresAt, twoFactorAt, csrfToken = newToken())
+        return JWT.create()
+            .withIssuer(JWT_ISSUER)
+            .withAudience(JWT_AUDIENCE)
+            .withSubject(userId.toString())
+            .withJWTId(jti)
+            .withIssuedAt(Date(now))
+            .withExpiresAt(Date(expiresAt))
+            .sign(algorithm)
+    }
+
+    /** Valida firma, emisor, audiencia y expiración del JWT; devuelve su `jti` o null. */
+    private fun verifiedJti(token: String): String? = try {
+        verifier.verify(token).id
+    } catch (_: JWTVerificationException) {
+        null
     }
 
     fun sessionInfo(token: String): SessionInfo? {
-        val s = sessions[token] ?: return null
+        val jti = verifiedJti(token) ?: return null
+        val s = sessions[jti] ?: return null // revocado (logout) o servidor reiniciado
         if (s.expiresAt <= clock()) {
-            sessions.remove(token)
+            sessions.remove(jti)
             return null
         }
-        return SessionInfo(s.userId, s.twoFactorAt)
+        return SessionInfo(s.userId, s.twoFactorAt, s.csrfToken)
     }
 
     fun sessionUser(token: String): UUID? = sessionInfo(token)?.userId
@@ -122,11 +169,17 @@ class SessionStore(
     fun now(): Long = clock()
 
     fun revoke(token: String) {
-        sessions.remove(token)
+        verifiedJti(token)?.let(sessions::remove)
+    }
+
+    private companion object {
+        const val JWT_ISSUER = "prisma-api"
+        const val JWT_AUDIENCE = "prisma-clients"
     }
 }
 
-class SessionInfo(val userId: UUID, val twoFactorAt: Long)
+/** [csrfToken]: token anti-CSRF de la sesión; obligatorio en escrituras autenticadas por cookie. */
+class SessionInfo(val userId: UUID, val twoFactorAt: Long, val csrfToken: String = "")
 
 /** [token] viaja al cliente; [code] solo se envía al correo del usuario. */
 class PendingChallenge(val token: String, val code: String)

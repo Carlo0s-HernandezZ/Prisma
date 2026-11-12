@@ -33,6 +33,9 @@ import com.example.prisma.income.IncomeViewModel
 import com.example.prisma.income.KtorIncomeRepository
 import com.example.prisma.ui.CardsScreen
 import com.example.prisma.ui.ComingSoonScreen
+import com.example.prisma.payroll.LocalPayrollDocumentPicker
+import com.example.prisma.payroll.PayrollScreen
+import com.example.prisma.payroll.PayrollSelectedFile
 import com.example.prisma.ui.Prisma
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.prisma.auth.KtorAuthRepository
@@ -200,6 +203,10 @@ fun HomeScreen(
     biometricSetting: BiometricSetting? = null,
 ) {
     var selectedDestination by remember { mutableStateOf(NavDestination.Home) }
+    // Selector de recibos de nómina (PDF/XML) para el Asistente IA; solo existe en Android.
+    val documentPicker = LocalPayrollDocumentPicker.current
+    var documentoSeleccionado by remember(token) { mutableStateOf<PayrollSelectedFile?>(null) }
+    var contadorDocumentos by remember(token) { mutableStateOf(0L) }
     // La clave incluye el token: cada sesión obtiene ViewModels nuevos (sin datos de la sesión anterior).
     val dashboardViewModel = viewModel(key = "dashboard-$token") { DashboardViewModel(KtorDashboardRepository(token)) }
 
@@ -273,6 +280,22 @@ fun HomeScreen(
                         CardsScreen(cardViewModel, incomeViewModel, onCardClick = { selectedCard = it })
                     }
                 }
+                NavDestination.Assistant -> PayrollScreen(
+                    token = token,
+                    documentoSeleccionado = documentoSeleccionado,
+                    onSeleccionarDocumento = documentPicker?.let { picker ->
+                        {
+                            picker.open { nombre, contenido ->
+                                contadorDocumentos += 1L
+                                documentoSeleccionado = PayrollSelectedFile(
+                                    identificador = contadorDocumentos,
+                                    nombreArchivo = nombre,
+                                    contenido = contenido,
+                                )
+                            }
+                        }
+                    },
+                )
                 else -> ComingSoonScreen(destination)
             }
         }

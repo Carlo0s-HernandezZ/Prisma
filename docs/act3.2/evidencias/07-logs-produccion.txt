@@ -1,0 +1,14 @@
+$ cat server.log   (servidor en PRISMA_ENV=production tras recibir logins fallidos con contraseña)
+2026-11-11 17:34:26.023 [main] INFO  io.ktor.server.Application - Autoreload is disabled because the development mode is off.
+2026-11-11 17:34:26.362 [main] INFO  io.ktor.server.Application - Correo SMTP configurado: p***@gmail.com vía smtp.gmail.com.
+2026-11-11 17:34:26.364 [main] INFO  io.ktor.server.Application - Entorno: production · modo depuración de Ktor: false
+2026-11-11 17:34:26.508 [main] INFO  io.ktor.server.Application - Application started in 0.627 seconds.
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::loadLibrary has been called by io.netty.util.internal.NativeLibraryUtil in an unnamed module (file:/Users/carloshernandez/AndroidStudioProjects/Prisma/server/build/install/server/lib/netty-common-4.2.17.Final.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+2026-11-11 17:34:26.954 [DefaultDispatcher-worker-1] INFO  io.ktor.server.Application - Responding at http://0.0.0.0:8080
+2026-11-11 17:34:26.954 [DefaultDispatcher-worker-1] INFO  io.ktor.server.Application - Responding at https://0.0.0.0:8443
+
+$ grep -ciE 'MiPasswordSecreto|nadie@prisma|Bearer|eyJ|password=' server.log
+0

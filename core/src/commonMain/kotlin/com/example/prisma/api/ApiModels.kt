@@ -22,6 +22,8 @@ object ApiErrorCodes {
     const val INVALID_CODE = "invalid_code"
     const val SESSION_EXPIRED = "session_expired"
     const val UNAUTHORIZED = "unauthorized"
+    /** Escritura autenticada por cookie sin el token anti-CSRF correcto (cabecera X-CSRF-Token). */
+    const val CSRF_INVALID = "csrf_invalid"
     const val EMAIL_TAKEN = "email_taken"
     const val WEAK_PASSWORD = "weak_password"
     const val TOO_MANY_ATTEMPTS = "too_many_attempts"
@@ -60,7 +62,12 @@ data class LoginResponse(val tempToken: String)
 data class Verify2faRequest(val tempToken: String, val code: String)
 
 @Serializable
-data class Verify2faResponse(val accessToken: String, val email: String)
+data class Verify2faResponse(
+    val accessToken: String,
+    val email: String,
+    /** Token anti-CSRF de la sesión: se envía en la cabecera X-CSRF-Token al usar la cookie de sesión. */
+    val csrfToken: String = "",
+)
 
 /**
  * Casillas que aparecen al crear la cuenta (documento "Términos y Condiciones / Aviso de Privacidad").

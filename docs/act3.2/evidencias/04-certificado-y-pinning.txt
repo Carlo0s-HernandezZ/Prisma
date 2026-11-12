@@ -1,0 +1,20 @@
+Pin esperado (SHA-256 de la llave pública del certificado): sha256//QkBEhKup+2M+O7FXU2UwkK3L+qwHseHlsDF+4F4uuUE=
+
+$ curl --cacert server/certs/prisma-cert.pem --pinnedpubkey "sha256//<pin correcto>" https://localhost:8443/
+Prisma API   (exit 0)
+
+$ curl --cacert server/certs/prisma-cert.pem --pinnedpubkey "sha256//AAAA…(pin de otro servidor / atacante MitM)" https://localhost:8443/
+curl: (90) SSL: public key does not match pinned public key
+   (exit 90)
+
+$ curl https://localhost:8443/   (sin confiar en el certificado: el cliente lo rechaza)
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+More details here: https://curl.se/docs/sslcerts.html
+
+$ openssl x509 -in server/certs/prisma-cert.pem -noout -subject -issuer -dates -ext subjectAltName
+subject=C=MX, ST=Jalisco, O=Prisma, CN=prisma-api
+issuer=C=MX, ST=Jalisco, O=Prisma, CN=prisma-api
+notBefore=Nov 11 23:25:16 2026 GMT
+notAfter=Feb 13 23:25:16 2029 GMT
+X509v3 Subject Alternative Name: 
+    DNS:localhost, IP Address:127.0.0.1, IP Address:10.0.2.2, IP Address:192.168.100.31

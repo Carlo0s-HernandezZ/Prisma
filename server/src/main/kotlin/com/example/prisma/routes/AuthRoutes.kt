@@ -18,7 +18,8 @@ import com.example.prisma.auth.PendingResult
 import com.example.prisma.auth.Passwords
 import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory.dbQuery
-import com.example.prisma.http.bearerToken
+import com.example.prisma.http.endSession
+import com.example.prisma.http.respondNewSession
 import com.example.prisma.http.isValidEmail
 import com.example.prisma.http.normalizeEmail
 import com.example.prisma.http.receiveOrBadRequest
@@ -196,7 +197,7 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                     ?.get(UsuariosTable.correoElectronico)
             } ?: ""
 
-            call.respond(Verify2faResponse(accessToken = sessions.createSession(userId), email = userEmail))
+            call.respondNewSession(sessions, sessions.createSession(userId), userEmail)
         }
 
         post("/forgot-password") {
@@ -261,7 +262,7 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
         }
 
         post("/logout") {
-            call.bearerToken()?.let(sessions::revoke)
+            call.endSession(sessions)
             call.respond(HttpStatusCode.NoContent)
         }
     }

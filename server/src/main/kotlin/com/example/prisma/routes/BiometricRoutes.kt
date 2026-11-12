@@ -10,6 +10,7 @@ import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory.dbQuery
 import com.example.prisma.http.authenticatedSession
+import com.example.prisma.http.respondNewSession
 import com.example.prisma.http.receiveOrBadRequest
 import com.example.prisma.http.respondError
 import com.example.prisma.models.DispositivosBiometricosTable
@@ -103,7 +104,7 @@ fun Route.biometricRoutes(sessions: SessionStore) {
                 }
             }
             val accessToken = sessions.createSession(user.first, twoFactorAt = lastTwoFactor)
-            call.respond(Verify2faResponse(accessToken = accessToken, email = user.second))
+            call.respondNewSession(sessions, accessToken, user.second)
         }
 
         /** Tras un login con 2FA, reinicia la ventana de 24 h del dispositivo (sin pedir huella otra vez). */

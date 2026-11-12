@@ -20,3 +20,8 @@ node_modules/
 
 # Credenciales SMTP locales del servidor (no subir)
 smtp.properties
+
+# Secretos del servidor y llave privada TLS (no subir)
+.env
+!.env.example
+server/certs/*.p12

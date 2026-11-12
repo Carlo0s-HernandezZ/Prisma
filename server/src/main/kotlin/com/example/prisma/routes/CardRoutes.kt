@@ -1,5 +1,8 @@
 package com.example.prisma.routes
 
+import io.ktor.utils.io.jvm.javaio.toInputStream
+import com.example.prisma.http.TextValidation
+import com.example.prisma.http.UploadValidation
 import com.example.prisma.api.ApiErrorCodes
 import com.example.prisma.api.CardDocumentDto
 import com.example.prisma.api.CardDto
@@ -66,10 +69,10 @@ fun Route.cardRoutes(sessions: SessionStore) {
             val alias = req.alias.trim()
             val lastFour = req.ultimosCuatro?.trim()?.takeIf { it.isNotEmpty() }
 
-            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH) {
+            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH || !TextValidation.isLabel(banco)) {
                 return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Nombre de banco inválido.")
             }
-            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH) {
+            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH || !TextValidation.isLabel(alias)) {
                 return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Alias de tarjeta inválido.")
             }
             if (lastFour != null && (lastFour.length != CardRules.LAST_FOUR_LENGTH || !lastFour.all(Char::isDigit))) {
@@ -100,10 +103,10 @@ fun Route.cardRoutes(sessions: SessionStore) {
             val alias = req.alias.trim()
             val lastFour = req.ultimosCuatro?.trim()?.takeIf { it.isNotEmpty() }
 
-            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH) {
+            if (banco.isEmpty() || banco.length > CardRules.MAX_BANK_LENGTH || !TextValidation.isLabel(banco)) {
                 return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Nombre de banco inválido.")
             }
-            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH) {
+            if (alias.isEmpty() || alias.length > CardRules.MAX_ALIAS_LENGTH || !TextValidation.isLabel(alias)) {
                 return@put call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Alias de tarjeta inválido.")
             }
             if (lastFour != null && (lastFour.length != CardRules.LAST_FOUR_LENGTH || !lastFour.all(Char::isDigit))) {
@@ -182,29 +185,38 @@ fun Route.cardRoutes(sessions: SessionStore) {
             val cardId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                 ?: return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Id inválido.")
 
-            var fileName = "documento.pdf"
-            var mimeType = "application/pdf"
+            var originalName: String? = null
             var fileBytes: ByteArray? = null
 
-            val multipart = call.receiveMultipart()
-            multipart.forEachPart { part ->
-                when (part) {
-                    is PartData.FileItem -> {
-                        fileName = part.originalFileName ?: "documento.pdf"
-                        mimeType = part.contentType?.toString() ?: "application/pdf"
-                        fileBytes = part.streamProvider().readBytes()
+            // Límite de tamaño aplicado al leer: un archivo mayor no se carga completo en memoria.
+            val multipart = call.receiveMultipart(formFieldLimit = UploadValidation.MAX_FILE_BYTES.toLong() + 1)
+            try {
+                multipart.forEachPart { part ->
+                    if (part is PartData.FileItem && fileBytes == null) {
+                        originalName = part.originalFileName
+                        fileBytes = part.provider().toInputStream().use { it.readNBytes(UploadValidation.MAX_FILE_BYTES + 1) }
                     }
-                    else -> {}
+                    part.release()
                 }
-                part.dispose()
+            } catch (_: Exception) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "No se pudo leer el archivo.")
             }
 
-            if (fileBytes == null) {
-                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Archivo requerido.")
+            val bytes = fileBytes
+                ?: return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Archivo requerido.")
+            if (bytes.size > UploadValidation.MAX_FILE_BYTES) {
+                return@post call.respondError(HttpStatusCode.PayloadTooLarge, ApiErrorCodes.INVALID_REQUEST, "El archivo supera 10 MB.")
             }
+            // Lista blanca: el tipo se decide por el contenido real, no por lo que declara el cliente.
+            val mimeType = UploadValidation.detectMime(bytes)
+                ?: return@post call.respondError(
+                    HttpStatusCode.UnsupportedMediaType, ApiErrorCodes.INVALID_REQUEST,
+                    "Solo se aceptan archivos PDF, JPG, PNG, WEBP o HEIC.",
+                )
+            val fileName = UploadValidation.safeFileName(originalName, mimeType)
 
-            val parsed = if (fileName.endsWith(".pdf", ignoreCase = true) || mimeType.contains("pdf")) {
-                ServerStatementParser.parsePdfBytes(fileBytes!!)
+            val parsed = if (mimeType == "application/pdf") {
+                ServerStatementParser.parsePdfBytes(bytes)
             } else {
                 ParsedStatementData(
                     montoPesos = null,

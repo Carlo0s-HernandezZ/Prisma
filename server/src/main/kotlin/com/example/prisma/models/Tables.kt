@@ -24,8 +24,9 @@ object UsuariosTable : Table("usuarios") {
 object DatosPersonalesTable : Table("datos_personales") {
     val id = integer("id").autoIncrement()
     val usuarioId = uuid("usuario_id").references(UsuariosTable.id)
-    val nombre = varchar("nombre", 100)
-    val apellido = varchar("apellido", 100)
+    // Cifrados con AES-256-GCM (DataCipher): el texto cifrado en Base64 ocupa más que el nombre original.
+    val nombre = varchar("nombre", 512)
+    val apellido = varchar("apellido", 512)
     val fechaNacimiento = date("fecha_nacimiento").nullable()
     val fechaCreacion = timestamp("fecha_creacion").defaultExpression(CurrentTimestamp).nullable()
     val fechaActualizacion = timestamp("fecha_actualizacion").defaultExpression(CurrentTimestamp).nullable()

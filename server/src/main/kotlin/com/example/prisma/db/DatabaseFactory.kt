@@ -1,5 +1,6 @@
 package com.example.prisma.db
 
+import com.example.prisma.config.AppConfig
 import com.example.prisma.models.*
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -11,9 +12,10 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
     fun init() {
-        val dbUrl = System.getenv("JDBC_DATABASE_URL") ?: "jdbc:postgresql://localhost:5432/prisma_db"
-        val dbUser = System.getenv("DB_USER") ?: "postgres"
-        val dbPassword = System.getenv("DB_PASSWORD") ?: "1234"
+        // Credenciales desde variables de entorno o server/.env (nunca escritas en el código).
+        val dbUrl = AppConfig.get("JDBC_DATABASE_URL", "jdbc:postgresql://localhost:5432/prisma_db")
+        val dbUser = AppConfig.get("DB_USER", "postgres")
+        val dbPassword = requireNotNull(AppConfig.get("DB_PASSWORD")) { "Falta DB_PASSWORD en server/.env" }
 
         val config = HikariConfig().apply {
             driverClassName = "org.postgresql.Driver"

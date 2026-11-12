@@ -1,5 +1,7 @@
 package com.example.prisma.routes
 
+import com.example.prisma.http.TextValidation
+import com.example.prisma.security.DataCipher
 import com.example.prisma.api.ApiErrorCodes
 import com.example.prisma.api.ApiRules
 import com.example.prisma.api.PersonalData
@@ -38,8 +40,8 @@ fun Route.profileRoutes(sessions: SessionStore) {
                     .singleOrNull()
                     ?.let {
                         PersonalData(
-                            nombre = it[DatosPersonalesTable.nombre],
-                            apellido = it[DatosPersonalesTable.apellido],
+                            nombre = DataCipher.decrypt(it[DatosPersonalesTable.nombre]),
+                            apellido = DataCipher.decrypt(it[DatosPersonalesTable.apellido]),
                             fechaNacimiento = it[DatosPersonalesTable.fechaNacimiento]?.toString(),
                         )
                     }
@@ -58,11 +60,12 @@ fun Route.profileRoutes(sessions: SessionStore) {
             val nombre = req.nombre.trim()
             val apellido = req.apellido.trim()
             if (nombre.isEmpty() || apellido.isEmpty() ||
-                nombre.length > ApiRules.MAX_NAME_LENGTH || apellido.length > ApiRules.MAX_NAME_LENGTH
+                nombre.length > ApiRules.MAX_NAME_LENGTH || apellido.length > ApiRules.MAX_NAME_LENGTH ||
+                !TextValidation.isPersonName(nombre) || !TextValidation.isPersonName(apellido)
             ) {
                 return@post call.respondError(
                     HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST,
-                    "Nombre y apellido son obligatorios (máximo ${ApiRules.MAX_NAME_LENGTH} caracteres).",
+                    "Nombre y apellido son obligatorios: solo letras, espacios, apóstrofo o guion (máximo ${ApiRules.MAX_NAME_LENGTH} caracteres).",
                 )
             }
 
@@ -88,8 +91,9 @@ fun Route.profileRoutes(sessions: SessionStore) {
 
                 if (existing != null) {
                     DatosPersonalesTable.update({ DatosPersonalesTable.usuarioId eq userId }) {
-                        it[DatosPersonalesTable.nombre] = nombre
-                        it[DatosPersonalesTable.apellido] = apellido
+                        // PII cifrada en reposo con AES-256-GCM.
+                        it[DatosPersonalesTable.nombre] = DataCipher.encrypt(nombre)
+                        it[DatosPersonalesTable.apellido] = DataCipher.encrypt(apellido)
                         it[DatosPersonalesTable.fechaNacimiento] = fecha
                         it[DatosPersonalesTable.fechaActualizacion] = CurrentTimestamp
                         if (existing[DatosPersonalesTable.fechaCreacion] == null) {
@@ -100,8 +104,9 @@ fun Route.profileRoutes(sessions: SessionStore) {
                 } else {
                     DatosPersonalesTable.insert {
                         it[DatosPersonalesTable.usuarioId] = userId
-                        it[DatosPersonalesTable.nombre] = nombre
-                        it[DatosPersonalesTable.apellido] = apellido
+                        // PII cifrada en reposo con AES-256-GCM.
+                        it[DatosPersonalesTable.nombre] = DataCipher.encrypt(nombre)
+                        it[DatosPersonalesTable.apellido] = DataCipher.encrypt(apellido)
                         it[DatosPersonalesTable.fechaNacimiento] = fecha
                     }[DatosPersonalesTable.id]
                 }

@@ -174,7 +174,7 @@ fun LoginScreen(
                         onSubmit = viewModel::submit,
                         onToggleRegister = viewModel::toggleRegisterMode,
                         onForgotPassword = onForgotPassword,
-                        biometricLabel = if (biometricAvailable) biometric?.label else null,
+                        biometricLabel = if (biometricAvailable) biometric.label else null,
                         biometricIsFace = biometric?.kind == BiometricKind.FaceId,
                         biometricBusy = biometricBusy,
                         onBiometric = ::unlockWithBiometrics,
