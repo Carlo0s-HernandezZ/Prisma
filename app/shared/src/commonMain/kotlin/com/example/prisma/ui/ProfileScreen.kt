@@ -208,6 +208,14 @@ fun ProfileScreen(
 
                 biometric?.let { BiometricSettingCard(it) }
 
+                // Documentos legales: abre la página pública de Términos (desde ahí «Volver a Prisma» regresa aquí).
+                SoftCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        BrandLabel("Legal y privacidad", color = Prisma.colors.onSurface.copy(alpha = 0.6f))
+                        LegalLinks(color = PrismaPalette.NaranjaAmbar, fontSize = 14.sp)
+                    }
+                }
+
                 // Logout Button
                 SoftCard(Modifier.fillMaxWidth()) {
                     Box(
