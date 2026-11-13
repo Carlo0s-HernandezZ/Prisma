@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      Permisos mínimos (Actividad 3.2): solo red. No se piden permisos peligrosos.
+      - Fotos y PDF se eligen con el selector del sistema (OpenDocument / GetContent), que no requiere
+        READ_EXTERNAL_STORAGE ni READ_MEDIA_IMAGES: la app solo recibe el archivo que el usuario elige.
+      - La huella (BiometricPrompt) declara USE_BIOMETRIC desde su librería; es un permiso "normal".
+    -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -8,15 +15,29 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Por si alguna librería los agrega por su cuenta: se eliminan del manifiesto final. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" tools:node="remove" />
+
+    <!--
+      allowBackup=false + dataExtractionRules: los datos de la app no salen del teléfono por respaldos.
+      usesCleartextTraffic=false + networkSecurityConfig: prohibido HTTP sin cifrar.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-
         <receiver
             android:name=".notifications.CardReminderReceiver"
             android:enabled="true"
@@ -26,13 +47,25 @@
             </intent-filter>
         </receiver>
 
+        <!-- exported=true es obligatorio para la actividad de inicio (MAIN/LAUNCHER); no recibe datos de otras apps.
+             singleTask: al volver desde la página de Términos se reanuda la app abierta (no se reinicia la sesión). -->
         <activity
             android:exported="true"
+            android:launchMode="singleTask"
             android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- «Volver a Prisma» desde terminos.html (prisma://abrir). Solo abre la app: no lee datos del enlace. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="prisma" android:host="abrir" />
             </intent-filter>
         </activity>
     </application>

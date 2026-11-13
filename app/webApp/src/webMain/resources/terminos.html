@@ -36,6 +36,11 @@ a { color: var(--ambar-profundo); }
 .top nav { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 .top nav a { text-decoration: none; color: var(--texto); font-weight: 500; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--linea); }
 .top nav a:hover { border-color: var(--naranja); color: var(--ambar-profundo); }
+/* «Volver a Prisma»: botón principal (Dorado + Grafito, como los botones de la app). */
+.volver { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: var(--dorado); color: #2C2B30 !important;
+  font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px; border: 0; white-space: nowrap; }
+.volver:hover { background: var(--ambar); }
+.volver-hero { margin-top: 18px; font-size: 15px; padding: 10px 22px; }
 
 main { max-width: 920px; margin: 0 auto; padding: 28px 20px 40px; }
 .hero { background: var(--resalte); border-radius: 22px; padding: 34px 24px 28px; text-align: center; }
@@ -88,6 +93,7 @@ footer { border-top: 1px solid var(--linea); margin-top: 50px; }
       <a href="#parte-b">Privacidad</a>
       <a href="#parte-c">Seguridad</a>
       <a href="#parte-d">Consentimientos</a>
+      <a class="volver noprint" data-volver href="./">← Volver a Prisma</a>
     </nav>
   </div>
 </header>
@@ -100,6 +106,7 @@ footer { border-top: 1px solid var(--linea); margin-top: 50px; }
     <h1>Tu información, claramente protegida</h1>
     <p class="sub">PRISMA — Gestor Inteligente de Tarjetas de Crédito</p>
     <p class="lema">Tu futuro en tus manos</p>
+    <a class="volver volver-hero noprint" data-volver href="./">← Volver a Prisma</a>
   </section>
 
   <div class="scroll"><table>
@@ -374,7 +381,10 @@ footer { border-top: 1px solid var(--linea); margin-top: 50px; }
     <span>© 2026 TDSoft Company · PRISMA v1.0</span>
     <span class="lema-f">Tu futuro en tus manos</span>
     <a class="noprint" href="#inicio">Volver arriba ↑</a>
+    <a class="volver noprint" data-volver href="./">← Volver a Prisma</a>
   </div>
 </footer>
+<!-- Archivo aparte: la política CSP del sitio no permite scripts dentro del HTML. -->
+<script src="legal/volver.js"></script>
 </body>
 </html>

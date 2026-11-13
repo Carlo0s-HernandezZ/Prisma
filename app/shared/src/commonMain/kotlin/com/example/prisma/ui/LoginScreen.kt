@@ -1,7 +1,6 @@
 package com.example.prisma.ui
 
 import com.example.prisma.termsPageUrl
-import com.example.prisma.getPlatform
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
@@ -165,7 +164,6 @@ fun LoginScreen(
 
     val colors = Prisma.colors
     val isLight = colors.background.luminance() > 0.5f
-    val isWeb = remember { getPlatform().isWeb }
 
     // Formulario (registro exitoso, credenciales o código 2FA). Igual en móvil y web.
     val formContent: @Composable () -> Unit = {
@@ -299,9 +297,8 @@ fun LoginScreen(
                     color = InkOnPanel,
                     modifier = Modifier.padding(top = 24.dp),
                 )
-                if (isWeb) {
-                    Box(Modifier.padding(top = 12.dp)) { LegalLinks(color = InkOnPanel, fontSize = 12.sp, centered = true) }
-                }
+                // En las tres plataformas: la página de Términos es pública y se puede leer antes de entrar.
+                Box(Modifier.padding(top = 12.dp)) { LegalLinks(color = InkOnPanel, fontSize = 12.sp, centered = true) }
             }
         }
     }
@@ -876,7 +873,7 @@ private fun ConsentRow(consent: Consent, checked: Boolean, highlight: Boolean, o
  * En la web abre una pestaña nueva; en Android/iOS abre el navegador del teléfono.
  */
 @Composable
-private fun LegalLinks(color: Color, fontSize: TextUnit, leading: String = "", centered: Boolean = false) {
+internal fun LegalLinks(color: Color, fontSize: TextUnit, leading: String = "", centered: Boolean = false) {
     val uriHandler = LocalUriHandler.current
     val linkStyle = SpanStyle(color = color, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)
     val text = buildAnnotatedString {
