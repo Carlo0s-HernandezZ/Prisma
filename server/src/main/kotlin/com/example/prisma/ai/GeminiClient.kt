@@ -1,6 +1,7 @@
 
 package com.example.prisma.ai
 
+import com.example.prisma.config.AppConfig
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -17,8 +18,8 @@ import kotlinx.serialization.json.put
 
 class GeminiClient {
 
-    private val apiKey = System.getenv("GEMINI_API_KEY")
-        ?.takeIf { it.isNotBlank() }
+    // API key desde variable de entorno o server/.env; viaja en la cabecera x-goog-api-key (no en la URL).
+    private val apiKey = AppConfig.get("GEMINI_API_KEY")
         ?: error("GEMINI_API_KEY no está configurada")
 
     private val model = "gemini-3.5-flash-lite"

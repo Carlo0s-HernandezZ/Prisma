@@ -10,7 +10,7 @@ import kotlin.test.*
 class ApplicationTest {
 
     private fun withApp(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
-        application { module(initDatabase = false) }
+        application { module(initDatabase = false, enforceHttps = false) }
         block()
     }
 
@@ -28,6 +28,7 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/reports/latest").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/incomes").status)
         assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.put("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
         for (path in listOf("enroll", "renew", "revoke")) {
             val r = client.post("/api/v1/auth/biometric/$path") {
                 contentType(ContentType.Application.Json)
@@ -78,5 +79,23 @@ class ApplicationTest {
             setBody("""{"email":"sin-arroba","password":"12345678"}""")
         }
         assertEquals(HttpStatusCode.BadRequest, badEmail.status)
+    }
+
+    @Test
+    fun registerRequiresMandatoryConsents() = withApp {
+        val none = client.post("/api/v1/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"a@b.com","password":"12345678"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, none.status)
+        assertContains(none.bodyAsText(), "consent_required")
+
+        // Solo las opcionales: tampoco alcanza.
+        val onlyOptional = client.post("/api/v1/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"a@b.com","password":"12345678","consentimientos":["Estadisticas","Encuestas","Novedades"]}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, onlyOptional.status)
+        assertContains(onlyOptional.bodyAsText(), "consent_required")
     }
 }

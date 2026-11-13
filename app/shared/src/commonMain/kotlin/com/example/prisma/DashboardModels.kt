@@ -94,7 +94,7 @@ class KtorDashboardRepository(
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (_: Throwable) { // En web (wasm) un fallo de red llega como kotlin.Error, no Exception.
             DashboardUiState(isLoading = false, errorMessage = "Sin conexión con el servidor. Revisa tu internet e inténtalo de nuevo.")
         }
         emit(result)

@@ -134,27 +134,24 @@ object IncomeRules {
     const val MAX_NAME_LENGTH = 100
 }
 
-// ---------- Tarjetas ----------
-
-@Serializable
-data class CardDto(
-    val id: String,
-    val banco: String,
-    val alias: String,
-    val ultimosCuatro: String? = null,
-)
-
-object CardRules {
-    const val MAX_BANK_LENGTH = 100
-    const val MAX_ALIAS_LENGTH = 150
-    const val LAST_FOUR_LENGTH = 4
-}
+// ---------- Tarjetas de Crédito ----------
 
 @Serializable
 data class CreateCardRequest(
+    /** Nombre del banco, p. ej. "BBVA", "Citibanamex", "Nu". */
     val banco: String,
+    /** Alias o apodo de la tarjeta, p. ej. "Tarjeta Principal", "Gastos Diarios". */
     val alias: String,
+    /** Últimos 4 dígitos opcionales de la tarjeta, p. ej. "1234". */
     val ultimosCuatro: String? = null,
+    /** Día del mes del corte (1..31). */
+    val diaCorte: Int? = null,
+    /** Hora para recordatorio de corte en formato "HH:mm" (p. ej. "09:00"). */
+    val horaNotificacionCorte: String? = null,
+    /** Día del mes del pago (1..31). */
+    val diaPago: Int? = null,
+    /** Hora para recordatorio de pago en formato "HH:mm" (p. ej. "20:00"). */
+    val horaNotificacionPago: String? = null,
 )
 
 @Serializable
@@ -162,32 +159,32 @@ data class UpdateCardRequest(
     val banco: String,
     val alias: String,
     val ultimosCuatro: String? = null,
+    val diaCorte: Int? = null,
+    val horaNotificacionCorte: String? = null,
+    val diaPago: Int? = null,
+    val horaNotificacionPago: String? = null,
 )
 
 @Serializable
-data class CardDocumentDto(
+data class CardDto(
     val id: String,
-    val tarjetaId: String,
-    val nombreArchivo: String,
-    val tipoMime: String,
-    val urlODatos: String,
-    val montoPesos: String? = null,
-    val periodo: String? = null,
-    val fechaCorte: String? = null,
-    val fechaPago: String? = null,
-    val fechaRegistro: String? = null,
+    val banco: String,
+    val alias: String,
+    val ultimosCuatro: String? = null,
+    val diaCorte: Int? = null,
+    val horaNotificacionCorte: String? = null,
+    val diaPago: Int? = null,
+    val horaNotificacionPago: String? = null,
+    /** Fecha y hora local del registro, formato ISO "yyyy-MM-ddTHH:mm". */
+    val fechaRegistro: String,
 )
 
-@Serializable
-data class CreateCardDocumentRequest(
-    val nombreArchivo: String,
-    val tipoMime: String,
-    val urlODatos: String,
-    val montoPesos: String? = null,
-    val periodo: String? = null,
-    val fechaCorte: String? = null,
-    val fechaPago: String? = null,
-)
+object CardRules {
+    const val MAX_BANK_LENGTH = 100
+    const val MAX_ALIAS_LENGTH = 150
+    const val LAST_FOUR_LENGTH = 4
+    val VALID_DAYS = 1..31
+}
 
 // ---------- Acceso biométrico ----------
 

@@ -1,5 +1,6 @@
 package com.example.prisma.routes
 
+import com.example.prisma.security.DataCipher
 import com.example.prisma.api.DashboardResponse
 import com.example.prisma.api.PaymentAlertDto
 import com.example.prisma.auth.SessionStore
@@ -21,6 +22,7 @@ fun Route.dashboardRoutes(sessions: SessionStore) {
                 .where { DatosPersonalesTable.usuarioId eq userId }
                 .singleOrNull()
                 ?.get(DatosPersonalesTable.nombre)
+                ?.let(DataCipher::decrypt)
                 .orEmpty()
         }
 

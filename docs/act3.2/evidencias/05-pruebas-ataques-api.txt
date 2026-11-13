@@ -1,0 +1,85 @@
+Servidor: https://localhost:9443   (TLS ≥ 1.2, certificado de Prisma)
+
+=== Preparación: dos usuarios de prueba ===
+registro alice.82c227@prisma.test: 201
+registro bob.82c227@prisma.test: 201
+sesiones iniciadas (usuario + contraseña + código 2FA)
+
+=== 1. JWT (Parte 4.3) ===
+encabezado: {"alg":"HS256","typ":"JWT"}
+carga útil: {"iss": "prisma-api", "aud": "prisma-clients", "sub": "037dc33d-a6eb-4545-9bc6-0d9e3d075d4e", "iat": 1794440760, "exp": 1794483960}
+[OK ] JWT con 'sub' alterado (sin conocer la llave) se rechaza
+        401 {"code":"unauthorized","message":"Sesión inválida o expirada."}
+[OK ] JWT con alg=none se rechaza
+        401 {"code":"unauthorized","message":"Sesión inválida o expirada."}
+
+=== 2. Cookies de sesión (Parte 1.2) ===
+Set-Cookie: __Host-prisma_session=<valor>; Max-Age=43200; Path=/; Secure; HttpOnly; SameSite=Strict
+Set-Cookie: __Host-prisma_csrf=<valor>; Max-Age=43200; Path=/; Secure; SameSite=Strict
+[OK ] Cookie de sesión con HttpOnly, Secure y SameSite=Strict
+        flags presentes
+
+=== 3. CSRF (Parte 2.4) ===
+[OK ] POST con la cookie pero SIN X-CSRF-Token (sitio atacante) → 403
+        403 {"code":"csrf_invalid","message":"Token anti-CSRF ausente o inválido."}
+[OK ] POST con X-CSRF-Token adivinado → 403
+        403 {"code":"csrf_invalid","message":"Token anti-CSRF ausente o inválido."}
+[OK ] POST legítimo con la cookie + token CSRF de la sesión → 201
+        201 {"id":"8dfdf6c9-d199-4135-81ed-96dd4df7d4cf","nombre":"Sueldo","montoNeto":"15000.00","esAuditado":false,"fech…
+
+=== 4. IDOR – control de acceso por recurso (Parte 2.3) ===
+Alice crea la tarjeta 7a7e92ff-28bb-41cb-bff0-689c8a4b5372
+[OK ] Bob (GET /api/v1/cards/{id-de-Alice}/documents) → 404
+        404 {"code":"not_found","message":"Tarjeta no encontrada."}
+[OK ] Bob (PUT /api/v1/cards/{id-de-Alice}) → 404
+        404 {"code":"not_found","message":"Tarjeta no encontrada."}
+[OK ] Bob (DELETE /api/v1/cards/{id-de-Alice}) → 404
+        404 {"code":"not_found","message":"Tarjeta no encontrada."}
+[OK ] La tarjeta de Alice sigue intacta
+        [{"id":"7a7e92ff-28bb-41cb-bff0-689c8a4b5372","banco":"BBVA","alias":"Tarjeta de Alice","ultimosCuatro":"4321"…
+[OK ] Bob solo ve sus propias tarjetas (lista vacía)
+        200 []
+
+=== 5. Inyección SQL (Parte 2.2) ===
+[OK ] login con email="' OR '1'='1' --"
+        401 {"code":"invalid_credentials","message":"Correo o contraseña incorrectos."}
+[OK ] login con email="admin@prisma.test' --"
+        401 {"code":"invalid_credentials","message":"Correo o contraseña incorrectos."}
+[OK ] login con email="x@x.com'; DROP TABLE usuarios; --"
+        401 {"code":"invalid_credentials","message":"Correo o contraseña incorrectos."}
+[OK ] id de ruta '1 OR 1=1' → 400 (no es UUID)
+        400 {"code":"invalid_request","message":"Id inválido."}
+[OK ] nombre de ingreso con SQL → 400 (lista blanca)
+        400 {"code":"invalid_request","message":"El nombre del ingreso es obligatorio: letras, números y . , ( ) / # & + -…
+[OK ] monto '1 OR 1=1' → 400 (solo números con 2 decimales)
+        400 {"code":"invalid_request","message":"El monto debe ser mayor a 0, con máximo 2 decimales y hasta 9999999999.99…
+[OK ] Los ingresos de Alice siguen ahí (no se ejecutó DELETE)
+        {"ingresos":[{"id":"8dfdf6c9-d199-4135-81ed-96dd4df7d4cf","nombre":"Sueldo","montoNeto":"15000.00","esAuditado…
+
+=== 6. XSS – validación de entradas y salida JSON (Parte 2.1) ===
+[OK ] perfil nombre='<script>alert(document.cookie)</script>' → 400
+        400 {"code":"invalid_request","message":"Nombre y apellido son obligatorios: solo letras, espacios, apóstrofo o gu…
+[OK ] perfil apellido='"><img src=x onerror=alert(1)>' → 400
+        400 {"code":"invalid_request","message":"Nombre y apellido son obligatorios: solo letras, espacios, apóstrofo o gu…
+[OK ] banco con <svg onload> → 400
+        400 {"code":"invalid_request","message":"Nombre de banco inválido."}
+[OK ] Las respuestas son JSON con nosniff y CSP default-src 'none'
+        application/json
+
+=== 7. Subida de archivos con lista blanca (Parte 2.1) ===
+[OK ] HTML disfrazado de PDF (estado.pdf) → 415
+        415 {"code":"invalid_request","message":"Solo se aceptan archivos PDF, JPG, PNG, WEBP o HEIC."}
+[OK ] PDF real con nombre malicioso → se guarda con nombre limpio
+        201 nombreArchivo='b_estado.pdf'
+
+=== 8. Datos personales cifrados (AES-256-GCM) ===
+[OK ] La API devuelve el perfil descifrado al dueño
+        {"nombre":"Alicia","apellido":"Prueba","fechaNacimiento":"2000-01-15"}
+(usuario de prueba: alice.82c227@prisma.test — ver consulta SQL en 06-bd-cifrado.txt)
+
+=== 9. Cierre de sesión revoca el JWT ===
+[OK ] Tras logout, el mismo JWT (firma aún válida) → 401
+        logout 204; reuso 401 {"code":"unauthorized","message":"Sesión inválida o expirada."}
+
+Resultado: 26/26 controles verificados
+USUARIOS_DE_PRUEBA=alice.82c227@prisma.test,bob.82c227@prisma.test

@@ -14,7 +14,9 @@ html, body {
     }
 }
 
+/* Fondo de la presentación de TDSOFT: enlaza sin destello con la animación de inicio. */
 #prisma-loading {
+    background: #111827;
     position: fixed;
     inset: 0;
     display: flex;
@@ -29,13 +31,7 @@ html, body {
     font-family: "Poppins", "Inter", system-ui, sans-serif;
     font-size: 11px;
     letter-spacing: 0.2em;
-    color: #2C2B30;
-}
-
-@media (prefers-color-scheme: dark) {
-    #prisma-loading span {
-        color: #F8ECDC;
-    }
+    color: #F8ECDC;
 }
 
 /* Cuando Compose ya dibujó la app (agrega un <canvas>), se oculta la pantalla de carga. */

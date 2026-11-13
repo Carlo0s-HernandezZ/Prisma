@@ -37,3 +37,8 @@ kotlin {
         }
     }
 }
+// Seguridad (Actividad 3.2): sin eval() en el JavaScript generado, para que la Content-Security-Policy
+// del servidor web pueda prohibir 'unsafe-eval' (ver webpack.config.d/devServer.js).
+tasks.withType<org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack>().configureEach {
+    devtool = "source-map"
+}

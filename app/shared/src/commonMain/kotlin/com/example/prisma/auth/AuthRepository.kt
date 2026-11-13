@@ -1,6 +1,7 @@
 package com.example.prisma.auth
 
 import com.example.prisma.api.ApiErrorCodes
+import com.example.prisma.api.Consent
 import com.example.prisma.api.ForgotPasswordRequest
 import com.example.prisma.api.GeneralResponse
 import com.example.prisma.api.LoginRequest
@@ -27,7 +28,7 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.cancellation.CancellationException
 
 enum class AuthError {
-    InvalidCredentials, InvalidCode, SessionExpired, EmailTaken, WeakPassword, TooManyAttempts, Network, Unknown
+    InvalidCredentials, InvalidCode, SessionExpired, EmailTaken, WeakPassword, TooManyAttempts, EmailFailed, ConsentRequired, Network, Unknown
 }
 
 class AuthException(val error: AuthError) : Exception(error.name)
@@ -36,7 +37,7 @@ interface AuthRepository {
     /** Devuelve el token temporal para el paso de 2FA. */
     suspend fun login(email: String, password: String): Result<String>
     suspend fun verifyTwoFactor(tempToken: String, code: String): Result<Verify2faResponse>
-    suspend fun register(email: String, password: String): Result<RegisterResponse>
+    suspend fun register(email: String, password: String, consents: Set<Consent>): Result<RegisterResponse>
     suspend fun forgotPassword(email: String): Result<String>
     suspend fun resetPassword(email: String, code: String, newPassword: String): Result<String>
     suspend fun logout(accessToken: String)
@@ -61,9 +62,9 @@ class FakeAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun register(email: String, password: String): Result<RegisterResponse> {
+    override suspend fun register(email: String, password: String, consents: Set<Consent>): Result<RegisterResponse> {
         delay(700)
-        return Result.success(RegisterResponse("Success", "DEMODEMODEMODEMODEMODEMODEMODEMO", ""))
+        return Result.success(RegisterResponse("Success"))
     }
 
     override suspend fun forgotPassword(email: String): Result<String> {
@@ -100,11 +101,11 @@ class KtorAuthRepository(
             }
         }) { it.body<Verify2faResponse>() }
 
-    override suspend fun register(email: String, password: String): Result<RegisterResponse> =
+    override suspend fun register(email: String, password: String, consents: Set<Consent>): Result<RegisterResponse> =
         request(default401 = AuthError.Unknown, send = {
             client.post("$baseUrl/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
-                setBody(RegisterRequest(email, password))
+                setBody(RegisterRequest(email, password, consentimientos = consents))
             }
         }) { it.body<RegisterResponse>() }
 
@@ -130,7 +131,7 @@ class KtorAuthRepository(
             client.post("$baseUrl/api/v1/auth/logout") { withToken(accessToken) }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (_: Throwable) { // En web (wasm) un fallo de red llega como kotlin.Error, no Exception.
         }
     }
 
@@ -147,7 +148,7 @@ class KtorAuthRepository(
         }
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
+    } catch (e: Throwable) { // En web (wasm) un fallo de red llega como kotlin.Error, no Exception.
         println("PRISMA auth network error: ${e::class.simpleName}")
         Result.failure(AuthException(AuthError.Network))
     }
@@ -156,6 +157,8 @@ class KtorAuthRepository(
         val code = response.apiErrorCode()
         return when {
             code == ApiErrorCodes.WEAK_PASSWORD -> AuthError.WeakPassword
+            code == ApiErrorCodes.EMAIL_FAILED -> AuthError.EmailFailed
+            code == ApiErrorCodes.CONSENT_REQUIRED -> AuthError.ConsentRequired
             code == ApiErrorCodes.EMAIL_TAKEN || response.status == HttpStatusCode.Conflict -> AuthError.EmailTaken
             code == ApiErrorCodes.SESSION_EXPIRED || response.status == HttpStatusCode.Gone -> AuthError.SessionExpired
             code == ApiErrorCodes.TOO_MANY_ATTEMPTS || response.status == HttpStatusCode.TooManyRequests -> AuthError.TooManyAttempts

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Términos y Condiciones de Uso, Aviso de Privacidad Integral y Seguridad de PRISMA — Gestor Inteligente de Tarjetas de Crédito.">
+<meta name="theme-color" content="#FE7B07">
+<title>PRISMA · Términos y Condiciones y Aviso de Privacidad</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon_32.png">
+<style>
+/* Manual de Identidad Corporativa PRISMA: Naranja Prisma #FE7B07, Naranja Ámbar #EB6520, Ámbar #FDAD3E,
+   Dorado #FBC156, Grafito #2C2B30, Crema #F8ECDC. Títulos Poppins SemiBold, cuerpo Poppins Regular. */
+@font-face { font-family: "Poppins"; src: url("legal/poppins_regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("legal/poppins_medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("legal/poppins_semibold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+
+:root {
+  --naranja: #FE7B07; --ambar-profundo: #EB6520; --ambar: #FDAD3E; --dorado: #FBC156;
+  --grafito: #2C2B30; --crema: #F8ECDC;
+  --fondo: #FFFAF2; --tarjeta: #FFFFFF; --texto: #2C2B30; --suave: #5E5A57; --linea: #E8DCC8; --resalte: #F8ECDC;
+}
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root { --fondo: #1B1B1D; --tarjeta: #26252A; --texto: #F8ECDC; --suave: #C9C0B4; --linea: #3A393E; --resalte: #2F2C2A; }
+  .logo-light { display: none; } .logo-dark { display: inline; }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 400 15px/1.7 "Poppins", system-ui, sans-serif; }
+a { color: var(--ambar-profundo); }
+
+.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--fondo) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--linea); }
+.top-in { max-width: 920px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.top-in img { height: 30px; }
+.top nav { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.top nav a { text-decoration: none; color: var(--texto); font-weight: 500; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--linea); }
+.top nav a:hover { border-color: var(--naranja); color: var(--ambar-profundo); }
+
+main { max-width: 920px; margin: 0 auto; padding: 28px 20px 40px; }
+.hero { background: var(--resalte); border-radius: 22px; padding: 34px 24px 28px; text-align: center; }
+.hero img { width: 170px; max-width: 60%; }
+.kicker { font-size: 11px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--suave); margin: 14px 0 4px; }
+h1 { font-weight: 600; font-size: clamp(26px, 5vw, 36px); line-height: 1.2; margin: 0; }
+.sub { color: var(--ambar-profundo); font-weight: 600; margin: 8px 0 2px; }
+.lema { font-style: italic; margin: 0; color: var(--suave); }
+
+table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px; background: var(--tarjeta); }
+th { background: var(--grafito); color: #fff; text-align: left; font-weight: 600; }
+th, td { border: 1px solid var(--linea); padding: 9px 12px; vertical-align: top; }
+td:first-child { font-weight: 600; }
+.scroll { overflow-x: auto; }
+
+h2 { font-weight: 600; font-size: clamp(22px, 4vw, 28px); margin: 54px 0 14px; padding-bottom: 8px; border-bottom: 3px solid var(--naranja); scroll-margin-top: 70px; }
+h3 { font-weight: 600; font-size: 18px; color: var(--ambar-profundo); margin: 28px 0 8px; scroll-margin-top: 70px; }
+h4 { font-weight: 600; font-size: 15px; margin: 16px 0 6px; }
+p { margin: 0 0 10px; }
+.cl { display: grid; grid-template-columns: 44px 1fr; gap: 0 6px; margin: 0 0 10px; }
+.cl b { color: var(--ambar-profundo); font-weight: 600; }
+ul { margin: 0 0 12px; padding-left: 22px; } li { margin: 0 0 5px; } li::marker { color: var(--naranja); }
+.nota { background: var(--resalte); border-left: 5px solid var(--naranja); border-radius: 0 12px 12px 0; padding: 14px 18px; margin: 14px 0 18px; }
+.nota strong { color: var(--ambar-profundo); display: block; }
+.leyenda { font-style: italic; color: var(--suave); }
+.check { list-style: none; padding-left: 0; } .check li::before { content: "☐  "; color: var(--suave); }
+.toc { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 16px; padding: 16px 20px; }
+.toc h3 { margin-top: 0; color: var(--texto); }
+
+footer { border-top: 1px solid var(--linea); margin-top: 50px; }
+.foot { max-width: 920px; margin: 0 auto; padding: 20px; display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; font-size: 13px; color: var(--suave); }
+.foot .lema-f { letter-spacing: .2em; text-transform: uppercase; font-size: 11px; font-weight: 500; }
+
+@media print {
+  .top, .noprint { display: none; } body { background: #fff; color: #000; font-size: 11pt; }
+  h2 { break-before: page; } .hero { background: #F8ECDC; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <a href="#inicio" aria-label="Inicio del documento">
+      <img class="logo-light" src="legal/prisma-logo.png" alt="PRISMA">
+      <img class="logo-dark" src="legal/prisma-logo-dark.png" alt="PRISMA">
+    </a>
+    <nav aria-label="Partes del documento">
+      <a href="#parte-a">Términos</a>
+      <a href="#parte-b">Privacidad</a>
+      <a href="#parte-c">Seguridad</a>
+      <a href="#parte-d">Consentimientos</a>
+    </nav>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <img class="logo-light" src="legal/prisma-logo.png" alt="Logotipo de PRISMA">
+    <img class="logo-dark" src="legal/prisma-logo-dark.png" alt="Logotipo de PRISMA">
+    <p class="kicker">Términos y Condiciones · Aviso de Privacidad · Seguridad</p>
+    <h1>Tu información, claramente protegida</h1>
+    <p class="sub">PRISMA — Gestor Inteligente de Tarjetas de Crédito</p>
+    <p class="lema">Tu futuro en tus manos</p>
+  </section>
+
+  <div class="scroll"><table>
+    <tr><th>Dato</th><th>Información</th></tr>
+    <tr><td>Versión</td><td>1.0</td></tr>
+    <tr><td>Vigente desde</td><td>24 de noviembre de 2026</td></tr>
+    <tr><td>Responsable</td><td>TDSoft Company</td></tr>
+    <tr><td>Domicilio</td><td>C. Independencia 55, Centro, 44100 Guadalajara, Jal.</td></tr>
+    <tr><td>Contacto de privacidad</td><td><a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a></td></tr>
+    <tr><td>Contacto de soporte y seguridad</td><td><a href="mailto:prisma.soporte.app@gmail.com">prisma.soporte.app@gmail.com</a></td></tr>
+    <tr><td>Plataformas</td><td>Web, Android y iOS</td></tr>
+  </table></div>
+
+  <p>Te enviamos este documento por correo para que puedas consultarlo cuando quieras.</p>
+
+  <div class="toc">
+    <h3>Contenido</h3>
+    <ul>
+      <li><a href="#parte-a">Parte A · Términos y Condiciones de Uso (secciones 1 a 16)</a></li>
+      <li><a href="#parte-b">Parte B · Aviso de Privacidad Integral (secciones B1 a B14)</a></li>
+      <li><a href="#parte-c">Parte C · Seguridad: lo que hacemos y lo que puedes hacer tú</a></li>
+      <li><a href="#parte-d">Parte D · Aceptación y consentimientos</a></li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ PARTE A -->
+  <h2 id="parte-a">Parte A · Términos y Condiciones de Uso</h2>
+  <div class="nota">
+    <p>PRISMA te ayuda a ver y entender tus deudas de tarjeta de crédito en un solo lugar.</p>
+    <p>No es un banco, no mueve tu dinero y no te da asesoría financiera. Tú eres responsable de la información que capturas y de cuidar tus accesos. La verificación en dos pasos (2FA) es obligatoria.</p>
+  </div>
+
+  <h3 id="a1">1. Quiénes somos y qué aceptas</h3>
+  <div class="cl"><b>1.1</b><span>Estos Términos regulan el uso de PRISMA — Gestor Inteligente de Tarjetas de Crédito (la «App»), en sus versiones Web y Android, operada por TDSoft Company, con domicilio en C. Independencia 55, Centro, 44100 Guadalajara, Jal. («PRISMA», «nosotros»).</span></div>
+  <div class="cl"><b>1.2</b><span>Al crear tu cuenta y marcar la casilla de aceptación, confirmas que leíste y aceptas estos Términos y el Aviso de Privacidad (Parte B). Si no estás de acuerdo, no uses la App.</span></div>
+  <div class="cl"><b>1.3</b><span>«Usuario» o «tú» es la persona que crea una cuenta. «Contenido del Usuario» son los datos y documentos que capturas o subes. «Servicio» es todo lo que la App ofrece.</span></div>
+
+  <h3 id="a2">2. Qué hace PRISMA y qué no hace</h3>
+  <div class="cl"><b>2.1</b><span>Qué hace: centraliza tus tarjetas de crédito e ingresos; calcula deuda, pagos a meses sin intereses (MSI), intereses y tiempo estimado de liquidación; te muestra un tablero (dashboard); analiza estados de cuenta en PDF o imagen con inteligencia artificial (IA); y te avisa cuando termina ese análisis.</span></div>
+  <div class="cl"><b>2.2</b><span>Qué no hace: no es una institución financiera ni bancaria; no otorga créditos; no realiza pagos ni transferencias; no se conecta a tus cuentas bancarias ni te pide usuarios o claves de banca en línea; no extrae información de sitios bancarios; y no da asesoría financiera, fiscal, legal ni de inversión.</span></div>
+  <div class="cl"><b>2.3</b><span>Los cálculos y diagnósticos son estimaciones con fines informativos y educativos, basadas en lo que tú capturas o subes. Pueden diferir de tu estado de cuenta oficial, que es el documento que prevalece. Verifica antes de tomar decisiones.</span></div>
+
+  <h3 id="a3">3. Requisitos para usar la App</h3>
+  <div class="cl"><b>3.1</b><span>Tener 18 años cumplidos y capacidad legal para aceptar estos Términos.</span></div>
+  <div class="cl"><b>3.2</b><span>Usar solo información propia: tarjetas, ingresos y documentos de los que seas titular o tengas autorización expresa.</span></div>
+  <div class="cl"><b>3.3</b><span>Contar con un correo electrónico propio, un dispositivo compatible y conexión a internet.</span></div>
+
+  <h3 id="a4">4. Tu cuenta y su seguridad</h3>
+  <div class="cl"><b>4.1</b><span>Te registras con correo y contraseña. Proporciona datos veraces y mantenlos actualizados.</span></div>
+  <div class="cl"><b>4.2</b><span>PRISMA usa verificación en dos pasos (2FA) con un código temporal de 6 dígitos (TOTP). Es obligatoria para entrar.</span></div>
+  <div class="cl"><b>4.3</b><span>Eres responsable de tu contraseña, de tus códigos y de tu dispositivo. No los compartas. Nunca te pediremos tu contraseña ni tus códigos por correo, mensaje o llamada.</span></div>
+  <div class="cl"><b>4.4</b><span>Si sospechas un acceso no autorizado, avísanos de inmediato a <a href="mailto:prisma.soporte.app@gmail.com">prisma.soporte.app@gmail.com</a> y cambia tu contraseña.</span></div>
+  <div class="cl"><b>4.5</b><span>Podemos bloquear tu cuenta de forma temporal si detectamos actividad sospechosa, para protegerte.</span></div>
+
+  <h3 id="a5">5. Uso aceptable</h3>
+  <p>Al usar PRISMA te comprometes a no:</p>
+  <ul>
+    <li>Usar la App con fines ilícitos o fraudulentos, ni suplantar la identidad de otra persona.</li>
+    <li>Subir información o documentos de terceros sin su autorización.</li>
+    <li>Intentar vulnerar la seguridad del servicio, acceder a cuentas ajenas, hacer ingeniería inversa, extraer datos de forma automatizada o realizar pruebas de intrusión sin permiso escrito.</li>
+    <li>Subir archivos con virus o código malicioso, ni sobrecargar el servicio.</li>
+    <li>Usar la App para ofrecer servicios comerciales a terceros sin nuestra autorización.</li>
+  </ul>
+
+  <h3 id="a6">6. Documentos que subes y funciones de IA</h3>
+  <div class="cl"><b>6.1</b><span>Puedes subir estados de cuenta en PDF o imagen. Antes de analizarlos, PRISMA valida el archivo y anonimiza los datos personales que no necesita para el análisis. No subas documentos con NIP, CVV, contraseñas o claves: no los necesitamos.</span></div>
+  <div class="cl"><b>6.2</b><span>La extracción de datos la realiza un modelo de IA de un proveedor externo (Google, mediante su API Gemini). La IA puede equivocarse: revisa y corrige los datos extraídos antes de basarte en ellos.</span></div>
+  <div class="cl"><b>6.3</b><span>PRISMA no toma decisiones automatizadas que produzcan efectos jurídicos sobre ti ni te califica crediticiamente. Si un resultado automatizado te afecta, puedes oponerte y pedir revisión humana (sección B8).</span></div>
+  <div class="cl"><b>6.4</b><span>El análisis se hace en segundo plano. Verás los estados Pendiente, Procesando, Completado o Error, y recibirás una notificación al terminar.</span></div>
+
+  <h3 id="a7">7. Notificaciones</h3>
+  <div class="cl"><b>7.1</b><span>Te enviaremos notificaciones sobre el estado de tus documentos y avisos de seguridad o del servicio. Puedes desactivar las notificaciones desde tu dispositivo; algunos avisos de seguridad podrán enviarse por correo.</span></div>
+
+  <h3 id="a8">8. Propiedad intelectual</h3>
+  <div class="cl"><b>8.1</b><span>PRISMA, su logotipo, su lema «Tu futuro en tus manos», su diseño, código y contenidos pertenecen a TDSoft Company o se usan con licencia.</span></div>
+  <div class="cl"><b>8.2</b><span>Te otorgamos una licencia personal, limitada, revocable, no exclusiva e intransferible para usar la App conforme a estos Términos.</span></div>
+  <div class="cl"><b>8.3</b><span>Tu Contenido sigue siendo tuyo. Nos autorizas únicamente a tratarlo para prestarte el Servicio, conforme al Aviso de Privacidad.</span></div>
+  <div class="cl"><b>8.4</b><span>No puedes usar nuestra marca, logotipo ni diseño sin permiso por escrito.</span></div>
+
+  <h3 id="a9">9. Disponibilidad y cambios en el servicio</h3>
+  <div class="cl"><b>9.1</b><span>PRISMA está en una versión inicial (MVP). Puede tener errores, interrupciones o cambios en sus funciones.</span></div>
+  <div class="cl"><b>9.2</b><span>Haremos lo razonable para mantenerla disponible y segura, pero no garantizamos que funcione sin interrupciones.</span></div>
+  <div class="cl"><b>9.3</b><span>Podemos modificar, suspender o retirar funciones. Te avisaremos cuando el cambio sea relevante para ti.</span></div>
+
+  <h3 id="a10">10. Costo</h3>
+  <div class="cl"><b>10.1</b><span>El uso de PRISMA es gratuito. Si algún día se cobra por alguna función, te avisaremos antes y necesitaremos tu aceptación.</span></div>
+
+  <h3 id="a11">11. Limitación de responsabilidad</h3>
+  <div class="cl"><b>11.1</b><span>En la medida que la ley lo permita, no somos responsables por: decisiones financieras que tomes con base en la App; errores en datos que capturaste o que la IA extrajo y no revisaste; fallas de terceros (internet, proveedores, tu dispositivo); accesos no autorizados causados por compartir tus credenciales o códigos; ni pérdidas indirectas.</span></div>
+  <div class="cl"><b>11.2</b><span>Nada de esto limita los derechos que la ley te reconoce ni la responsabilidad que no pueda limitarse conforme a la ley.</span></div>
+
+  <h3 id="a12">12. Suspensión y cierre de cuenta</h3>
+  <div class="cl"><b>12.1</b><span>Puedes cerrar tu cuenta cuando quieras desde la App o escribiendo a <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a></span></div>
+  <div class="cl"><b>12.2</b><span>Podemos suspender o cancelar tu cuenta si incumples estos Términos o por razones de seguridad, avisándote cuando sea posible.</span></div>
+  <div class="cl"><b>12.3</b><span>Al cerrar tu cuenta eliminamos o anonimizamos tus datos conforme al Aviso de Privacidad (sección B9).</span></div>
+
+  <h3 id="a13">13. Cambios a estos Términos</h3>
+  <div class="cl"><b>13.1</b><span>Podemos actualizar estos Términos. Te avisaremos por correo y en la App antes de que entren en vigor. Si sigues usando PRISMA después de esa fecha, aceptas los cambios; si no estás de acuerdo, puedes cerrar tu cuenta.</span></div>
+
+  <h3 id="a14">14. Comunicaciones</h3>
+  <div class="cl"><b>14.1</b><span>Nos comunicaremos contigo al correo de tu cuenta y mediante avisos en la App. Mantén tu correo actualizado.</span></div>
+
+  <h3 id="a15">15. Ley aplicable y jurisdicción</h3>
+  <div class="cl"><b>15.1</b><span>Estos Términos se rigen por las leyes de los Estados Unidos Mexicanos. Para su interpretación, las partes se someten a los tribunales de Guadalajara, Jalisco, sin perjuicio de los derechos que la ley te otorga ante las autoridades competentes.</span></div>
+
+  <h3 id="a16">16. Disposiciones generales</h3>
+  <div class="cl"><b>16.1</b><span>Si alguna cláusula resulta inválida, las demás siguen vigentes. Que no exijamos un derecho no significa que renunciemos a él.</span></div>
+  <div class="cl"><b>16.2</b><span>Estos Términos y el Aviso de Privacidad son el acuerdo completo entre tú y PRISMA sobre el uso de la App.</span></div>
+
+  <!-- ============================================================ PARTE B -->
+  <h2 id="parte-b">Parte B · Aviso de Privacidad Integral</h2>
+  <p class="leyenda">Elaborado conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (publicada en el Diario Oficial de la Federación el 20 de marzo de 2025).</p>
+  <div class="nota">
+    <strong>En pocas palabras</strong>
+    <p>Guardamos solo lo necesario para que PRISMA funcione. Tus datos financieros se tratan únicamente con tu consentimiento expreso.</p>
+    <p>No vendemos tus datos. Los documentos se anonimizan antes de pasar por la IA. Puedes acceder, corregir, cancelar u oponerte al uso de tus datos, sin costo.</p>
+  </div>
+
+  <h3 id="b1">B1. Quién es el responsable</h3>
+  <p>TDSoft Company, con domicilio en C. Independencia 55, Centro, 44100 Guadalajara, Jal., es responsable del tratamiento de tus datos personales. Persona o área de datos personales: Atención al cliente. Contacto: <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a></p>
+
+  <h3 id="b2">B2. Qué datos personales tratamos</h3>
+  <div class="scroll"><table>
+    <tr><th>Categoría</th><th>Ejemplos</th><th>Cuándo los obtenemos</th></tr>
+    <tr><td>Identificación y contacto</td><td>Correo electrónico; nombre, si lo proporcionas.</td><td>Al registrarte.</td></tr>
+    <tr><td>Autenticación y seguridad</td><td>Contraseña (guardada solo como «hash», no en texto legible); clave del segundo factor (2FA); sesiones; registros de acceso.</td><td>Al registrarte y al iniciar sesión.</td></tr>
+    <tr><td>Financieros y patrimoniales (consentimiento expreso)</td><td>Ingresos que registras; tarjetas (alias, banco emisor, límite, saldo, fechas de corte y de pago, tasas, MSI); movimientos; deudas; resultados de los cálculos.</td><td>Cuando los capturas o se extraen de tus documentos.</td></tr>
+    <tr><td>Documentos</td><td>Estados de cuenta en PDF o imagen y los datos que se extraen de ellos. Si se habilita la auditoría de nómina, también recibos de nómina.</td><td>Cuando los subes.</td></tr>
+    <tr><td>Técnicos</td><td>Tipo de dispositivo, sistema operativo, versión de la App, identificador para notificaciones, dirección IP, fecha y hora de acceso y registros de errores (sin información sensible).</td><td>Al usar la App.</td></tr>
+  </table></div>
+  <p>Lo que no pedimos: número completo de tarjeta, CVV, NIP, claves de banca en línea ni datos biométricos. Tampoco solicitamos datos sensibles (como salud, origen étnico o religión); evita incluirlos en los documentos que subes. PRISMA no está dirigida a menores de 18 años.</p>
+
+  <h3 id="b3">B3. Para qué usamos tus datos</h3>
+  <h4>Finalidades necesarias (sin ellas no podemos prestarte el servicio):</h4>
+  <ul>
+    <li>Crear y administrar tu cuenta.</li>
+    <li>Autenticarte con contraseña y 2FA, y proteger tu cuenta.</li>
+    <li>Registrar tus tarjetas e ingresos y calcular deuda, MSI, intereses y tiempo de liquidación.</li>
+    <li>Mostrarte el tablero y diagnósticos educativos.</li>
+    <li>Procesar tus documentos con IA y guardar los resultados.</li>
+    <li>Notificarte sobre el estado de tus documentos y sobre seguridad.</li>
+    <li>Mantener la seguridad, prevenir fraudes y diagnosticar errores.</li>
+    <li>Atender tus solicitudes de derechos y cumplir obligaciones legales.</li>
+  </ul>
+  <h4>Finalidades voluntarias (puedes negarte sin que esto afecte el servicio):</h4>
+  <ul>
+    <li>Generar estadísticas y mejorar PRISMA con datos agregados o anonimizados.</li>
+    <li>Invitarte a encuestas de usabilidad.</li>
+    <li>Enviarte novedades de PRISMA.</li>
+  </ul>
+  <p>Para negarte a las finalidades voluntarias, deja sin marcar su casilla en la Parte D o escríbenos a <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a> en cualquier momento.</p>
+
+  <h3 id="b4">B4. Consentimiento</h3>
+  <p>Tus datos financieros y patrimoniales requieren tu consentimiento expreso. Lo otorgas marcando la casilla correspondiente al registrarte (Parte D). Puedes revocarlo cuando quieras; si lo haces, no podremos prestarte las funciones que dependen de esos datos. Si algún día quisiéramos usar tus datos para una finalidad distinta, te pediremos de nuevo tu consentimiento, salvo los casos que la ley permita.</p>
+
+  <h3 id="b5">B5. Inteligencia artificial y anonimización</h3>
+  <p>Cuando subes un documento, primero lo validamos (tipo, tamaño y formato) y lo guardamos de forma temporal. Después anonimizamos los datos personales que no se necesitan para el análisis (como nombre, RFC, CURP y datos fiscales o bancarios) y enviamos el documento al proveedor de IA solo para extraer información financiera. Revisamos que el resultado tenga un formato válido y, para no repetir análisis, guardamos una huella (hash) del archivo y su resultado.</p>
+  <p>PRISMA no usa la IA para tomar decisiones sobre ti con efectos jurídicos. Tienes derecho a oponerte a decisiones tomadas solo por medios automatizados que te afecten de forma significativa.</p>
+
+  <h3 id="b6">B6. Con quién compartimos tus datos</h3>
+  <div class="scroll"><table>
+    <tr><th>Tercero</th><th>Para qué</th><th>Qué datos</th></tr>
+    <tr><td>Google (API Gemini)</td><td>Extraer información de tus documentos con IA.</td><td>Documentos anonimizados. Puede procesarlos fuera de México, según sus propios términos del servicio.</td></tr>
+    <tr><td>Servicio de notificaciones PUSH</td><td>Enviarte alertas y avisos operativos en tiempo real a la aplicación.</td><td>Identificador único del dispositivo.</td></tr>
+    <tr><td>Google (Servicio SMTP / Gmail)</td><td>Enviarte correos electrónicos transaccionales (confirmaciones, alertas de cuenta y avisos del servicio).</td><td>Dirección de correo electrónico y nombre de usuario.</td></tr>
+    <tr><td>Proveedor de Infraestructura</td><td>Almacenamiento seguro de archivos y gestión de la base de datos de la plataforma.</td><td>Los necesarios para operar el servicio.</td></tr>
+    <tr><td>Autoridades competentes</td><td>Cuando una ley o una orden legítima lo exija.</td><td>Solo los requeridos.</td></tr>
+  </table></div>
+  <p>No vendemos tus datos ni los compartimos con fines publicitarios. No hacemos otras transferencias sin tu consentimiento, salvo las que la ley permita.</p>
+
+  <h3 id="b7">B7. Cómo protegemos tus datos</h3>
+  <p>Aplicamos medidas de seguridad administrativas, técnicas y físicas. Las principales están en la <a href="#parte-c">Parte C</a>: contraseñas con hash, 2FA, sesiones con vigencia limitada, comunicaciones cifradas, anonimización previa a la IA y registros sin información sensible.</p>
+
+  <h3 id="b8">B8. Tus derechos</h3>
+  <p>Tienes derecho a: acceder a tus datos; rectificarlos o actualizarlos; cancelarlos; oponerte a su uso (incluido el de decisiones automatizadas); limitar su uso o divulgación; y revocar tu consentimiento. Son los llamados derechos ARCO.</p>
+  <h4>Cómo ejercerlos:</h4>
+  <ul>
+    <li>Escribe a <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a> desde el correo de tu cuenta.</li>
+    <li>Indica tu nombre y el medio para responderte, describe con claridad los datos y el derecho que ejerces, y adjunta un documento que acredite tu identidad (o la de tu representante).</li>
+    <li>Te responderemos en un máximo de 20 días hábiles. Si procede, lo haremos efectivo en los 15 días hábiles siguientes.</li>
+    <li>El ejercicio es gratuito; solo podrías cubrir costos de reproducción, copias o envío.</li>
+  </ul>
+  <p>Si no estás conforme con la respuesta, puedes acudir a la Secretaría Anticorrupción y Buen Gobierno, autoridad en materia de protección de datos personales en posesión de particulares, conforme a los plazos de la ley.</p>
+
+  <h3 id="b9">B9. Cuánto tiempo conservamos tus datos</h3>
+  <div class="scroll"><table>
+    <tr><th>Información</th><th>Plazo</th></tr>
+    <tr><td>Datos de tu cuenta y tus datos financieros</td><td>Mientras tu cuenta esté activa.</td></tr>
+    <tr><td>Documentos que subes</td><td>Se eliminan 1 día después de procesarse, o antes si tú los borras.</td></tr>
+    <tr><td>Tras cerrar tu cuenta</td><td>Eliminamos tus datos en un plazo de 30 días, salvo que una ley nos obligue a conservarlos.</td></tr>
+  </table></div>
+
+  <h3 id="b10">B10. Si ocurre una vulneración de seguridad</h3>
+  <p>Si ocurre una vulneración que afecte de forma significativa tus derechos patrimoniales o morales, te lo informaremos sin dilación por correo y en la App: qué pasó, qué datos se vieron afectados y qué puedes hacer.</p>
+
+  <h3 id="b11">B11. Cookies y almacenamiento en la versión Web</h3>
+  <p>PRISMA Web usa cookies y almacenamiento local esenciales para mantener tu sesión y la seguridad. No usamos cookies publicitarias.</p>
+
+  <h3 id="b12">B12. Menores de edad</h3>
+  <p>PRISMA es solo para personas de 18 años o más. Si detectamos una cuenta de un menor, la cancelaremos y eliminaremos sus datos.</p>
+
+  <h3 id="b13">B13. Cambios a este Aviso</h3>
+  <p>Podemos actualizar este Aviso. Te avisaremos por correo y en la App, y la versión vigente siempre tendrá su fecha de actualización en la primera página.</p>
+
+  <h3 id="b14">B14. Contacto</h3>
+  <p>Para cualquier duda sobre tus datos: <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a> · C. Independencia 55, Centro, 44100 Guadalajara, Jal.</p>
+
+  <!-- ============================================================ PARTE C -->
+  <h2 id="parte-c">Parte C · Seguridad de tu información</h2>
+  <div class="nota">
+    <strong>En pocas palabras</strong>
+    <p>Protegemos tu cuenta con contraseña y doble verificación, cifrado al transmitir datos y anonimización antes de usar IA. Tú nos ayudas cuidando tus contraseñas y tus códigos.</p>
+  </div>
+
+  <h3 id="c1">C1. Lo que hacemos nosotros</h3>
+  <ul>
+    <li>Contraseñas guardadas solo como hash; nunca en texto legible.</li>
+    <li>Verificación en dos pasos (2FA) con código temporal (TOTP) obligatoria.</li>
+    <li>Sesiones con vigencia limitada que expiran de forma automática.</li>
+    <li>Comunicaciones cifradas entre la App, el servidor y la base de datos.</li>
+    <li>Protección de los datos sensibles almacenados.</li>
+    <li>Anonimización de los documentos antes de enviarlos a la IA y almacenamiento temporal de los archivos.</li>
+    <li>Registros técnicos sin información sensible.</li>
+    <li>Acceso al sistema limitado a quien lo necesita, con revisión de código y pruebas de seguridad.</li>
+    <li>Manejo controlado de errores: si falla un servicio externo, la App no se cae ni expone tus datos.</li>
+  </ul>
+
+  <h3 id="c2">C2. Lo que puedes hacer tú</h3>
+  <ul>
+    <li>Usa una contraseña larga y única para PRISMA.</li>
+    <li>Usa una app autenticadora para tu 2FA y no compartas tus códigos con nadie.</li>
+    <li>Bloquea tu dispositivo y cierra sesión en equipos compartidos.</li>
+    <li>Mantén actualizados tu sistema y la App; instálala solo desde fuentes oficiales.</li>
+    <li>Desconfía de mensajes que se hagan pasar por PRISMA: nunca te pediremos tu contraseña ni tus códigos.</li>
+    <li>No subas documentos con NIP, CVV ni claves bancarias.</li>
+    <li>Revisa periódicamente los datos extraídos por la IA y corrige lo que esté mal.</li>
+  </ul>
+
+  <h3 id="c3">C3. Cómo reportar un incidente</h3>
+  <p>Escribe a <a href="mailto:prisma.soporte.app@gmail.com?subject=Incidente%20de%20seguridad">prisma.soporte.app@gmail.com</a> con el asunto «Incidente de seguridad». Cuéntanos qué pasó, cuándo y desde qué dispositivo. No incluyas tu contraseña ni tus códigos. Te responderemos en un máximo de 15 a 20 días hábiles.</p>
+
+  <!-- ============================================================ PARTE D -->
+  <h2 id="parte-d">Parte D · Aceptación y consentimientos</h2>
+  <p>Estas casillas aparecen en la App al crear tu cuenta. Se incluyen aquí para que conserves una constancia de lo que aceptas.</p>
+
+  <h3>Obligatorias para usar PRISMA</h3>
+  <ul class="check">
+    <li>He leído y acepto los Términos y Condiciones de Uso (Parte A).</li>
+    <li>He leído el Aviso de Privacidad Integral (Parte B).</li>
+    <li>Otorgo mi consentimiento expreso para el tratamiento de mis datos financieros y patrimoniales para las finalidades necesarias.</li>
+    <li>Autorizo el envío de mis documentos, ya anonimizados, al proveedor de IA para su análisis.</li>
+  </ul>
+
+  <h3>Opcionales (no afectan el servicio)</h3>
+  <ul class="check">
+    <li>Acepto el uso de datos agregados o anonimizados para estadísticas y mejora del producto.</li>
+    <li>Acepto recibir invitaciones a encuestas de usabilidad.</li>
+    <li>Acepto recibir novedades de PRISMA.</li>
+  </ul>
+
+  <div class="nota">
+    <strong>Contacto</strong>
+    <p>Privacidad y derechos ARCO: <a href="mailto:prisma.privacidad.app@gmail.com">prisma.privacidad.app@gmail.com</a></p>
+    <p>Soporte y seguridad: <a href="mailto:prisma.soporte.app@gmail.com">prisma.soporte.app@gmail.com</a></p>
+    <p>Domicilio: C. Independencia 55, Centro, 44100 Guadalajara, Jal.</p>
+    <p>Última actualización: 24 de noviembre de 2026 · Versión 1.0</p>
+  </div>
+</main>
+
+<footer>
+  <div class="foot">
+    <span>© 2026 TDSoft Company · PRISMA v1.0</span>
+    <span class="lema-f">Tu futuro en tus manos</span>
+    <a class="noprint" href="#inicio">Volver arriba ↑</a>
+  </div>
+</footer>
+</body>
+</html>

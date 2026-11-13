@@ -1,0 +1,491 @@
+openapi: 3.0.3
+info:
+  title: Prisma API
+  version: 1.0.0
+  description: |
+    API REST de **Prisma**, asistente de finanzas personales (Android, iOS y Web).
+
+    **Seguridad**
+    - Solo HTTPS con TLS 1.2 / TLS 1.3 (HTTP responde `301` a HTTPS) y cabecera HSTS.
+    - Autenticación con **JWT (HS256)** obtenido tras usuario/contraseña + código 2FA por correo.
+      Las apps lo envían en `Authorization: Bearer <jwt>`. El navegador también lo recibe en la cookie
+      `__Host-prisma_session` (`HttpOnly; Secure; SameSite=Strict`); toda escritura autenticada por cookie
+      exige la cabecera `X-CSRF-Token`.
+    - Cada recurso se consulta filtrando por el usuario del JWT (protección IDOR): el id de la URL nunca basta.
+    - Validación por listas blancas (formato, tipo, rango y caracteres) y consultas parametrizadas (ORM Exposed).
+
+    **¿Por qué JSON?** Es el formato nativo de kotlinx.serialization en el servidor y en las tres apps
+    (Kotlin Multiplatform comparte las mismas clases en `core`), es ligero, legible y tipado, y el navegador
+    lo procesa sin conversión. Se responde siempre con `Content-Type: application/json` y `nosniff`,
+    de modo que el navegador nunca lo interpreta como HTML (mitiga XSS).
+servers:
+  - url: https://localhost:8443
+    description: Servidor local (certificado autofirmado)
+tags:
+  - name: Autenticación
+  - name: Biometría
+  - name: Perfil
+  - name: Tarjetas
+  - name: Ingresos
+  - name: Resumen
+  - name: Nómina (IA)
+
+security:
+  - bearerJwt: []
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Crear cuenta
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: Cuenta creada, content: { application/json: { schema: { $ref: '#/components/schemas/GeneralResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: El correo ya está registrado, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Paso 1 — usuario y contraseña (envía código 2FA al correo)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: Token temporal para el paso 2FA, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { description: Demasiados intentos fallidos (limitador de fuerza bruta) }
+
+  /api/v1/auth/verify-2fa:
+    post:
+      tags: [Autenticación]
+      summary: Paso 2 — código 2FA; devuelve el JWT y fija las cookies de sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Verify2faRequest' }
+      responses:
+        '200':
+          description: Sesión iniciada
+          headers:
+            Set-Cookie:
+              description: '`__Host-prisma_session=<jwt>; HttpOnly; Secure; SameSite=Strict` y `__Host-prisma_csrf=<token>; Secure; SameSite=Strict`'
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Verify2faResponse' }
+        '401': { description: Código incorrecto }
+        '410': { description: Código expirado o sin intentos }
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Autenticación]
+      summary: Solicitar código de recuperación (respuesta idéntica exista o no el correo)
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ForgotPasswordRequest' } } }
+      responses:
+        '200': { description: Instrucciones enviadas si el correo existe, content: { application/json: { schema: { $ref: '#/components/schemas/GeneralResponse' } } } }
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Autenticación]
+      summary: Cambiar contraseña con el código recibido
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ResetPasswordRequest' } } }
+      responses:
+        '200': { description: Contraseña actualizada }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cerrar sesión (revoca el JWT y borra las cookies)
+      responses:
+        '204': { description: Sesión cerrada }
+
+  /api/v1/auth/biometric/enroll:
+    post:
+      tags: [Biometría]
+      summary: Registrar huella / Face ID para este dispositivo
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BiometricEnrollRequest' } } }
+      responses:
+        '201': { description: Dispositivo registrado, content: { application/json: { schema: { $ref: '#/components/schemas/BiometricEnrollResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/biometric/login:
+    post:
+      tags: [Biometría]
+      summary: Entrar con el token de dispositivo (desbloqueado con huella / Face ID)
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BiometricLoginRequest' } } }
+      responses:
+        '200': { description: Sesión iniciada, content: { application/json: { schema: { $ref: '#/components/schemas/Verify2faResponse' } } } }
+        '401': { description: Requiere 2FA de nuevo (más de 24 h) o dispositivo revocado }
+  /api/v1/auth/biometric/renew:
+    post:
+      tags: [Biometría]
+      summary: Renovar el token de dispositivo
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BiometricDeviceRequest' } } }
+      responses:
+        '204': { description: Renovado }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/auth/biometric/revoke:
+    post:
+      tags: [Biometría]
+      summary: Desactivar la biometría de un dispositivo
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BiometricDeviceRequest' } } }
+      responses:
+        '204': { description: Revocado }
+
+  /api/v1/user/profile:
+    get:
+      tags: [Perfil]
+      summary: Datos personales del usuario autenticado (descifrados de AES-256-GCM)
+      responses:
+        '200': { description: Perfil, content: { application/json: { schema: { $ref: '#/components/schemas/PersonalData' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Perfil]
+      summary: Crear o actualizar datos personales (se guardan cifrados con AES-256-GCM)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PersonalData' } } }
+      responses:
+        '200': { description: Guardado, content: { application/json: { schema: { $ref: '#/components/schemas/PersonalDataResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Csrf' }
+    delete:
+      tags: [Perfil]
+      summary: Borrar los datos personales del usuario autenticado
+      responses:
+        '204': { description: Borrado }
+
+  /api/v1/cards:
+    get:
+      tags: [Tarjetas]
+      summary: Tarjetas del usuario autenticado
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CardDto' } } } } }
+    post:
+      tags: [Tarjetas]
+      summary: Registrar tarjeta
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CardRequest' } } }
+      responses:
+        '201': { description: Creada, content: { application/json: { schema: { $ref: '#/components/schemas/CardDto' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/v1/cards/{id}:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    put:
+      tags: [Tarjetas]
+      summary: Editar tarjeta (solo si pertenece al usuario del JWT)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CardRequest' } } }
+      responses:
+        '200': { description: Actualizada, content: { application/json: { schema: { $ref: '#/components/schemas/CardDto' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Tarjetas]
+      summary: Eliminar tarjeta (solo si pertenece al usuario del JWT)
+      responses:
+        '204': { description: Eliminada }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/cards/{id}/documents:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    get:
+      tags: [Tarjetas]
+      summary: Estados de cuenta de la tarjeta
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CardDocumentDto' } } } } }
+    post:
+      tags: [Tarjetas]
+      summary: Subir estado de cuenta (PDF/JPG/PNG/WEBP/HEIC, máx. 10 MB, tipo verificado por contenido)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Subido, content: { application/json: { schema: { $ref: '#/components/schemas/CardDocumentDto' } } } }
+        '413': { description: Archivo mayor a 10 MB }
+        '415': { description: Tipo de archivo no permitido }
+  /api/v1/cards/{id}/documents/{docId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: docId, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [Tarjetas]
+      summary: Eliminar estado de cuenta
+      responses:
+        '204': { description: Eliminado }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/incomes:
+    get:
+      tags: [Ingresos]
+      summary: Ingresos del usuario y total del mes
+      responses:
+        '200': { description: Resumen, content: { application/json: { schema: { $ref: '#/components/schemas/IncomesSummary' } } } }
+    post:
+      tags: [Ingresos]
+      summary: Registrar ingreso
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/IncomeRequest' } } }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/IncomeDto' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/v1/incomes/{id}:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    put:
+      tags: [Ingresos]
+      summary: Editar ingreso (si cambia el monto deja de estar auditado)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/IncomeRequest' } } }
+      responses:
+        '200': { description: Actualizado, content: { application/json: { schema: { $ref: '#/components/schemas/IncomeDto' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Ingresos]
+      summary: Eliminar ingreso
+      responses:
+        '204': { description: Eliminado }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/reports/latest:
+    get:
+      tags: [Resumen]
+      summary: Resumen financiero del inicio
+      responses:
+        '200': { description: Resumen, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardResponse' } } } }
+
+  /api/v1/ai/payroll/analyze:
+    post:
+      tags: [Nómina (IA)]
+      summary: Auditar una nómina con Google Gemini (API de terceros)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PayrollRequest' } } }
+      responses:
+        '200': { description: Análisis, content: { application/json: { schema: { $ref: '#/components/schemas/PayrollAnalysis' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { description: Servicio de IA no disponible }
+  /api/v1/ai/payroll/upload:
+    post:
+      tags: [Nómina (IA)]
+      summary: Subir recibo de nómina PDF o CFDI XML (XML con protección XXE)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: Datos extraídos }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+components:
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-prisma_session
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Datos fuera de la lista blanca (formato, tipo, rango o caracteres)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Unauthorized:
+      description: JWT ausente, inválido, alterado, expirado o revocado
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    NotFound:
+      description: No existe o no pertenece al usuario del JWT (no se revela cuál de los dos)
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Csrf:
+      description: Escritura con cookie de sesión sin cabecera X-CSRF-Token válida
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: invalid_request }
+        message: { type: string }
+    GeneralResponse:
+      type: object
+      properties: { message: { type: string } }
+    RegisterRequest:
+      type: object
+      required: [email, password, consentimientos]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, format: password, minLength: 8 }
+        region: { type: string, pattern: '^[A-Za-z]{2,5}$', default: MX }
+        consentimientos:
+          type: array
+          items: { type: string, enum: [TerminosUso, AvisoPrivacidad, DatosFinancieros, EnvioIa, Estadisticas, Encuestas, Novedades] }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties: { tempToken: { type: string } }
+    Verify2faRequest:
+      type: object
+      required: [tempToken, code]
+      properties:
+        tempToken: { type: string }
+        code: { type: string, pattern: '^[0-9]{6}$' }
+    Verify2faResponse:
+      type: object
+      properties:
+        accessToken: { type: string, description: JWT HS256 }
+        email: { type: string }
+        csrfToken: { type: string }
+    ForgotPasswordRequest:
+      type: object
+      properties: { email: { type: string, format: email } }
+    ResetPasswordRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, pattern: '^[0-9]{6}$' }
+        newPassword: { type: string, format: password, minLength: 8 }
+    BiometricEnrollRequest:
+      type: object
+      properties: { plataforma: { type: string, enum: [android, ios] } }
+    BiometricEnrollResponse:
+      type: object
+      properties:
+        deviceId: { type: string, format: uuid }
+        deviceToken: { type: string }
+    BiometricLoginRequest:
+      type: object
+      properties: { deviceToken: { type: string } }
+    BiometricDeviceRequest:
+      type: object
+      properties: { deviceId: { type: string, format: uuid } }
+    PersonalData:
+      type: object
+      required: [nombre, apellido]
+      properties:
+        nombre: { type: string, maxLength: 100, pattern: "^[\\p{L}][\\p{L} .'\\-]*$" }
+        apellido: { type: string, maxLength: 100, pattern: "^[\\p{L}][\\p{L} .'\\-]*$" }
+        fechaNacimiento: { type: string, format: date, nullable: true }
+    PersonalDataResponse:
+      type: object
+      properties:
+        message: { type: string }
+        profileId: { type: integer }
+    CardRequest:
+      type: object
+      required: [banco, alias]
+      properties:
+        banco: { type: string, maxLength: 100 }
+        alias: { type: string, maxLength: 150 }
+        ultimosCuatro: { type: string, pattern: '^[0-9]{4}$', nullable: true }
+    CardDto:
+      allOf:
+        - $ref: '#/components/schemas/CardRequest'
+        - type: object
+          properties: { id: { type: string, format: uuid } }
+    CardDocumentDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tarjetaId: { type: string, format: uuid }
+        nombreArchivo: { type: string }
+        tipoMime: { type: string, enum: [application/pdf, image/jpeg, image/png, image/webp, image/heic] }
+        montoPesos: { type: string, nullable: true }
+        periodo: { type: string, nullable: true }
+        fechaCorte: { type: string, nullable: true }
+        fechaPago: { type: string, nullable: true }
+    IncomeRequest:
+      type: object
+      required: [nombre, montoNeto]
+      properties:
+        nombre: { type: string, maxLength: 100 }
+        montoNeto: { type: string, pattern: '^[0-9]{1,10}(\.[0-9]{1,2})?$', example: '15000.50' }
+    IncomeDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        montoNeto: { type: string }
+        esAuditado: { type: boolean }
+        fechaRegistro: { type: string }
+    IncomesSummary:
+      type: object
+      properties:
+        ingresos: { type: array, items: { $ref: '#/components/schemas/IncomeDto' } }
+        totalMes: { type: string }
+    DashboardResponse:
+      type: object
+      properties:
+        userName: { type: string }
+        status: { type: string }
+        radarAxes: { type: array, items: { type: string } }
+        totalToPayMxn: { type: number }
+    PayrollRequest:
+      type: object
+      required: [salarioBruto, isr, imss, salarioNeto, periodo]
+      properties:
+        salarioBruto: { type: number, minimum: 0 }
+        isr: { type: number, minimum: 0 }
+        imss: { type: number, minimum: 0 }
+        otrasDeducciones: { type: number, minimum: 0, default: 0 }
+        salarioNeto: { type: number, minimum: 0 }
+        periodo: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+    PayrollAnalysis:
+      type: object
+      properties:
+        resumen: { type: string }
+        percepciones: { type: number }
+        deducciones: { type: number }
+        salarioNeto: { type: number }
+        observaciones: { type: array, items: { type: string } }
+        recomendaciones: { type: array, items: { type: string } }
+        requiereRevision: { type: boolean }
+        diferencia: { type: number }

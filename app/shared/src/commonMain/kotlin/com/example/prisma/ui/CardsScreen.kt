@@ -13,9 +13,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,11 +43,24 @@ import kotlinx.coroutines.launch
 
 private enum class FinancePanel(val title: String) { Cards("Tarjetas"), Incomes("Ingresos") }
 
+private fun formatTime12h(time24h: String): String {
+    val parts = time24h.split(":")
+    if (parts.size != 2) return time24h
+    val h = parts[0].toIntOrNull() ?: return time24h
+    val m = parts[1].toIntOrNull() ?: return time24h
+    val amPm = if (h >= 12) "PM" else "AM"
+    val h12 = when (h % 12) {
+        0 -> 12
+        else -> h % 12
+    }
+    val minStr = if (m < 10) "0$m" else "$m"
+    return "$h12:$minStr $amPm"
+}
+
 @Composable
 fun CardsScreen(
     cardViewModel: CardViewModel,
     incomeViewModel: IncomeViewModel,
-    onCardClick: (CardDto) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val panels = FinancePanel.entries
@@ -68,7 +81,7 @@ fun CardsScreen(
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         BrandLabel(FinancePanel.Cards.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
-                        CardPanel(cardState, cardViewModel, onCardClick)
+                        CardPanel(cardState, cardViewModel)
                     }
                     Column(Modifier.weight(1.25f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         BrandLabel(FinancePanel.Incomes.title, color = Prisma.colors.onSurface.copy(alpha = 0.6f))
@@ -97,7 +110,7 @@ fun CardsScreen(
                 verticalAlignment = Alignment.Top,
             ) { page ->
                 when (panels[page]) {
-                    FinancePanel.Cards -> CardPanel(cardState, cardViewModel, onCardClick)
+                    FinancePanel.Cards -> CardPanel(cardState, cardViewModel)
                     FinancePanel.Incomes -> IncomePanel(incomeState, incomeViewModel)
                 }
             }
@@ -152,8 +165,9 @@ private fun PanelSwitcher(pagerState: PagerState, titles: List<String>, modifier
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick: (CardDto) -> Unit) {
+private fun CardPanel(state: CardUiState, viewModel: CardViewModel) {
     state.pendingDelete?.let { card ->
         AlertDialog(
             onDismissRequest = viewModel::cancelDelete,
@@ -172,7 +186,6 @@ private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick:
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Formulario
         SoftCard(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -206,10 +219,122 @@ private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick:
                     placeholder = { Text("1234") },
                     singleLine = true,
                     enabled = !state.isSaving,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { viewModel.save() }),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                // Selección de Día de Corte y Notificación Opcional
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DayDropdownSelector(
+                        label = "Día de corte (opcional)",
+                        selectedDay = state.diaCorteInput,
+                        onDaySelected = viewModel::onDiaCorteChange,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (state.diaCorteInput != null) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Recordatorio de corte por notificación",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Prisma.colors.onSurface,
+                            )
+                            Switch(
+                                checked = state.notificarCorte,
+                                onCheckedChange = viewModel::onNotificarCorteChange,
+                                enabled = !state.isSaving,
+                            )
+                        }
+
+                        if (state.notificarCorte) {
+                            var showPicker by remember { mutableStateOf(false) }
+                            OutlinedButton(
+                                onClick = { showPicker = true },
+                                enabled = !state.isSaving,
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Icon(Icons.Filled.Notifications, contentDescription = null, Modifier.size(18.dp), tint = PrismaPalette.NaranjaPrisma)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Hora: ${formatTime12h(state.horaNotificacionCorteInput)}", color = Prisma.colors.onSurface)
+                            }
+
+                            if (showPicker) {
+                                TimePickerDialog(
+                                    title = "Hora de recordatorio de corte",
+                                    initialTime = state.horaNotificacionCorteInput,
+                                    onConfirm = { time ->
+                                        viewModel.onHoraNotificacionCorteChange(time)
+                                        showPicker = false
+                                    },
+                                    onDismiss = { showPicker = false },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Selección de Día de Pago y Notificación Opcional
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DayDropdownSelector(
+                        label = "Día de pago (opcional)",
+                        selectedDay = state.diaPagoInput,
+                        onDaySelected = viewModel::onDiaPagoChange,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (state.diaPagoInput != null) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Recordatorio de pago por notificación",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Prisma.colors.onSurface,
+                            )
+                            Switch(
+                                checked = state.notificarPago,
+                                onCheckedChange = viewModel::onNotificarPagoChange,
+                                enabled = !state.isSaving,
+                            )
+                        }
+
+                        if (state.notificarPago) {
+                            var showPicker by remember { mutableStateOf(false) }
+                            OutlinedButton(
+                                onClick = { showPicker = true },
+                                enabled = !state.isSaving,
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Icon(Icons.Filled.Notifications, contentDescription = null, Modifier.size(18.dp), tint = Prisma.colors.statusHealthy)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Hora: ${formatTime12h(state.horaNotificacionPagoInput)}", color = Prisma.colors.onSurface)
+                            }
+
+                            if (showPicker) {
+                                TimePickerDialog(
+                                    title = "Hora de recordatorio de pago",
+                                    initialTime = state.horaNotificacionPagoInput,
+                                    onConfirm = { time ->
+                                        viewModel.onHoraNotificacionPagoChange(time)
+                                        showPicker = false
+                                    },
+                                    onDismiss = { showPicker = false },
+                                )
+                            }
+                        }
+                    }
+                }
+
                 state.message?.let {
                     Text(
                         it,
@@ -274,7 +399,6 @@ private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick:
                         CardRow(
                             card = card,
                             enabled = !state.isSaving,
-                            onClick = { onCardClick(card) },
                             onEdit = { viewModel.startEditing(card) },
                             onDelete = { viewModel.requestDelete(card) }
                         )
@@ -287,15 +411,112 @@ private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick:
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardRow(card: CardDto, enabled: Boolean, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun TimePickerDialog(
+    title: String,
+    initialTime: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val (h, m) = remember(initialTime) {
+        val parts = initialTime.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 9
+        val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        Pair(hour, min)
+    }
+    val timePickerState = rememberTimePickerState(
+        initialHour = h,
+        initialMinute = m,
+        is24Hour = false,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val hStr = if (timePickerState.hour < 10) "0${timePickerState.hour}" else "${timePickerState.hour}"
+                    val mStr = if (timePickerState.minute < 10) "0${timePickerState.minute}" else "${timePickerState.minute}"
+                    onConfirm("$hStr:$mStr")
+                }
+            ) {
+                Text("Aceptar", color = PrismaPalette.Dorado)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = Prisma.colors.onSurface)
+            }
+        },
+        title = {
+            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+        },
+        text = {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                TimePicker(state = timePickerState)
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayDropdownSelector(
+    label: String,
+    selectedDay: Int?,
+    onDaySelected: (Int?) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = selectedDay?.let { "Día $it" } ?: "Sin especificar",
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Sin especificar", color = Prisma.colors.onSurface.copy(alpha = 0.6f)) },
+                onClick = {
+                    onDaySelected(null)
+                    expanded = false
+                },
+            )
+            (1..31).forEach { day ->
+                DropdownMenuItem(
+                    text = { Text("Día $day del mes") },
+                    onClick = {
+                        onDaySelected(day)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardRow(card: CardDto, enabled: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 card.alias,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -308,6 +529,26 @@ private fun CardRow(card: CardDto, enabled: Boolean, onClick: () -> Unit, onEdit
                 style = MaterialTheme.typography.bodyMedium,
                 color = Prisma.colors.onSurface.copy(alpha = 0.7f),
             )
+            if (card.diaCorte != null || card.diaPago != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    card.diaCorte?.let { day ->
+                        val timeStr = card.horaNotificacionCorte?.let { " (${formatTime12h(it)})" } ?: ""
+                        Text(
+                            "Corte: Día $day$timeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PrismaPalette.NaranjaPrisma,
+                        )
+                    }
+                    card.diaPago?.let { day ->
+                        val timeStr = card.horaNotificacionPago?.let { " (${formatTime12h(it)})" } ?: ""
+                        Text(
+                            "Pago: Día $day$timeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Prisma.colors.statusHealthy,
+                        )
+                    }
+                }
+            }
         }
         IconButton(onClick = onEdit, enabled = enabled) {
             Icon(Icons.Filled.Edit, contentDescription = "Editar tarjeta ${card.alias}", tint = Prisma.colors.onSurface.copy(alpha = 0.7f))
