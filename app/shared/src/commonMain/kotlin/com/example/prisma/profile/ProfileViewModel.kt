@@ -16,6 +16,8 @@ data class ProfileUiState(
     /** yyyy-MM-dd o vacío. */
     val fechaNacimiento: String = "",
     val isLoading: Boolean = false,
+    /** Ya terminó la primera lectura del perfil (antes se muestra el esqueleto de carga). */
+    val hasLoaded: Boolean = false,
     val message: String? = null,
     val isError: Boolean = false,
     val confirmDelete: Boolean = false,
@@ -44,6 +46,7 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
                     _state.update {
                         it.copy(
                             isLoading = false,
+                            hasLoaded = true,
                             nombre = data?.nombre.orEmpty(),
                             apellido = data?.apellido.orEmpty(),
                             fechaNacimiento = data?.fechaNacimiento.orEmpty(),
@@ -105,6 +108,7 @@ class ProfileViewModel(private val repository: ProfileRepository) : ViewModel() 
         _state.update {
             it.copy(
                 isLoading = false,
+                hasLoaded = true,
                 isError = true,
                 sessionExpired = error == ProfileError.Unauthorized,
                 message = when (error) {

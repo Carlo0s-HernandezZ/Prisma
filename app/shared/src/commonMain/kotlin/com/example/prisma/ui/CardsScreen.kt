@@ -408,8 +408,13 @@ private fun CardPanel(state: CardUiState, viewModel: CardViewModel, onCardClick:
         )
         SoftCard(Modifier.fillMaxWidth()) {
             when {
-                state.isLoading && state.cards.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(28.dp), color = PrismaPalette.NaranjaPrisma)
+                state.isLoading && state.cards.isEmpty() -> Column(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).loadingSemantics("Cargando tus tarjetas"),
+                ) {
+                    repeat(3) { index ->
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                        CardRowSkeleton()
+                    }
                 }
                 state.cards.isEmpty() -> Text(
                     "Aún no registras tarjetas.",
@@ -612,11 +617,15 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
         SoftCard(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Ingresos de este mes", style = MaterialTheme.typography.bodyMedium, color = Prisma.colors.onSurface.copy(alpha = 0.7f))
-                Text(
-                    formatMxn(state.totalMes),
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Prisma.colors.statusHealthy,
-                )
+                if (state.isLoading && state.ingresos.isEmpty()) {
+                    SkeletonText(MaterialTheme.typography.headlineMedium, 150.dp, Modifier.loadingSemantics("Cargando total del mes"))
+                } else {
+                    Text(
+                        formatMxn(state.totalMes),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Prisma.colors.statusHealthy,
+                    )
+                }
             }
         }
 
@@ -718,8 +727,22 @@ private fun IncomePanel(state: IncomeUiState, viewModel: IncomeViewModel) {
         }
         SoftCard(Modifier.fillMaxWidth()) {
             when {
-                state.isLoading && state.ingresos.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(28.dp), color = PrismaPalette.NaranjaPrisma)
+                state.isLoading && state.ingresos.isEmpty() && desktop -> Column(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp).loadingSemantics("Cargando tus ingresos"),
+                ) {
+                    IncomeTableHeader()
+                    repeat(4) {
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                        IncomeTableRowSkeleton()
+                    }
+                }
+                state.isLoading && state.ingresos.isEmpty() -> Column(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).loadingSemantics("Cargando tus ingresos"),
+                ) {
+                    repeat(3) { index ->
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Prisma.colors.onSurface.copy(alpha = 0.08f))
+                        IncomeRowSkeleton()
+                    }
                 }
                 state.ingresos.isEmpty() -> Text(
                     "Aún no registras ingresos.",
@@ -1214,6 +1237,65 @@ private fun IncomeTableRow(income: IncomeDto, enabled: Boolean, onEdit: () -> Un
             IconButton(onClick = onDelete, enabled = enabled) {
                 Icon(Icons.Filled.Delete, contentDescription = "Eliminar ingreso ${income.nombre}", tint = Prisma.colors.statusCritical)
             }
+        }
+    }
+}
+
+// ---------- Esqueletos de carga (misma forma que CardRow, IncomeRow e IncomeTableRow) ----------
+
+@Composable
+private fun CardRowSkeleton() {
+    val type = MaterialTheme.typography
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            SkeletonText(type.titleMedium, 140.dp)          // alias
+            SkeletonText(type.bodyMedium, 120.dp)           // banco •••• 1234
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SkeletonText(type.bodySmall, 92.dp)         // Corte: Día …
+                SkeletonText(type.bodySmall, 88.dp)         // Pago: Día …
+            }
+        }
+        SkeletonIconButton()                                // editar
+        SkeletonIconButton()                                // eliminar
+    }
+}
+
+@Composable
+private fun IncomeRowSkeleton() {
+    val type = MaterialTheme.typography
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            SkeletonText(type.titleMedium, 120.dp)          // nombre
+            SkeletonText(type.bodyLarge, 90.dp)             // monto
+            SkeletonText(type.bodySmall, 130.dp)            // fecha
+        }
+        SkeletonIconButton()
+        SkeletonIconButton()
+    }
+}
+
+@Composable
+private fun IncomeTableRowSkeleton() {
+    val type = MaterialTheme.typography
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(COL_NAME)) { SkeletonTextFraction(type.bodyLarge, 0.6f) }
+        Box(Modifier.weight(COL_AMOUNT)) { SkeletonTextFraction(type.bodyLarge, 0.55f) }
+        Box(Modifier.weight(COL_DATE)) { SkeletonTextFraction(type.bodyMedium, 0.7f) }
+        Row(Modifier.width(96.dp)) {
+            SkeletonIconButton()
+            SkeletonIconButton()
         }
     }
 }

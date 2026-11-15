@@ -160,7 +160,12 @@ fun CardDetailScreen(
                     color = Prisma.colors.onSurface.copy(alpha = 0.6f),
                 )
 
-                if (state.isLoading || state.isUploading) {
+                if (state.isLoading && !state.isUploading && state.documents.isEmpty()) {
+                    // Esqueleto con la forma de las tarjetas de estado de cuenta.
+                    Column(Modifier.loadingSemantics("Cargando estados de cuenta"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        repeat(2) { ExtractedStatementCardSkeleton() }
+                    }
+                } else if (state.isLoading || state.isUploading) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             CircularProgressIndicator(color = PrismaPalette.NaranjaPrisma)
@@ -323,6 +328,42 @@ private fun ExtractedStatementCard(
     }
 }
 
+/** Esqueleto con la misma forma que [ExtractedStatementCard]. */
+@Composable
+private fun ExtractedStatementCardSkeleton() {
+    val type = MaterialTheme.typography
+    SoftCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SkeletonBox(Modifier.size(24.dp), height = 24.dp, shape = RoundedCornerShape(6.dp)) // ícono PDF / imagen
+                    Column {
+                        SkeletonText(type.bodyMedium, 150.dp)      // nombre del archivo
+                        SkeletonText(type.bodySmall, 190.dp)       // Periodo • Corte
+                    }
+                }
+                SkeletonIconButton()                               // eliminar
+            }
+
+            HorizontalDivider(color = Prisma.colors.onSurface.copy(alpha = 0.1f))
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SkeletonText(type.labelMedium, 210.dp)             // "Información Financiera Extraída"
+                listOf(130.dp to 90.dp, 100.dp to 80.dp, 140.dp to 80.dp).forEach { (label, value) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        SkeletonText(type.bodySmall, label)
+                        SkeletonText(type.bodySmall, value)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun StatementRowItem(label: String, value: String) {
     Row(
@@ -432,10 +473,12 @@ private fun DesktopCardDetail(
                     )
 
                     when {
-                        state.isLoading && state.documents.isEmpty() -> SoftCard(Modifier.fillMaxWidth()) {
-                            Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = PrismaPalette.NaranjaPrisma)
-                            }
+                        state.isLoading && state.documents.isEmpty() -> Row(
+                            Modifier.fillMaxWidth().height(IntrinsicSize.Min).loadingSemantics("Cargando estados de cuenta"),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            // Misma cuadrícula de 2 columnas que los estados de cuenta reales.
+                            repeat(2) { Box(Modifier.weight(1f).fillMaxHeight()) { ExtractedStatementCardSkeleton() } }
                         }
                         state.documents.isEmpty() -> SoftCard(Modifier.fillMaxWidth()) {
                             Column(
