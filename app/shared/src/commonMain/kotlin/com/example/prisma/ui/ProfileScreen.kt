@@ -131,6 +131,15 @@ fun ProfileScreen(
                             ),
                         )
 
+                        if (!state.hasLoaded) {
+                            // Esqueleto: los tres campos (Nombre, Apellido, Fecha de nacimiento) con su misma
+                            // altura (56 dp) y forma, más los dos botones.
+                            Column(Modifier.loadingSemantics("Cargando tu perfil"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                repeat(3) { SkeletonBox(Modifier.fillMaxWidth(), height = 56.dp, shape = OutlinedTextFieldDefaults.shape) }
+                                SkeletonBox(Modifier.fillMaxWidth(), height = 48.dp, shape = RoundedCornerShape(50))
+                                SkeletonBox(Modifier.fillMaxWidth(), height = 40.dp, shape = RoundedCornerShape(50))
+                            }
+                        } else {
                         OutlinedTextField(
                             value = state.nombre,
                             onValueChange = viewModel::onNombreChange,
@@ -214,6 +223,7 @@ fun ProfileScreen(
                         ) {
                             Text("Eliminar Datos Personales")
                         }
+                        } // fin del formulario (después del esqueleto)
                     }
                 }
 
