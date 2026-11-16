@@ -1,0 +1,15 @@
+$ aapt2 dump permissions app/androidApp/build/outputs/apk/debug/androidApp-debug.apk
+package: com.example.prisma
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+uses-permission: name='android.permission.USE_BIOMETRIC'
+uses-permission: name='android.permission.USE_FINGERPRINT'
+permission: com.example.prisma.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+uses-permission: name='com.example.prisma.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'
+
+$ aapt2 dump xmltree --file AndroidManifest.xml (atributos de <application>)
+        A: http://schemas.android.com/apk/res/android:allowBackup(0x01010280)=false
+        A: http://schemas.android.com/apk/res/android:fullBackupContent(0x010104eb)=false
+        A: http://schemas.android.com/apk/res/android:usesCleartextTraffic(0x010104ec)=false
+        A: http://schemas.android.com/apk/res/android:networkSecurityConfig(0x01010527)=@0x7f110001
+        A: http://schemas.android.com/apk/res/android:dataExtractionRules(0x0101063e)=@0x7f110000

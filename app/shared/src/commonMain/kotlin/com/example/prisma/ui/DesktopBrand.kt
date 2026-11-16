@@ -75,7 +75,7 @@ fun DesktopBrandPanel(modifier: Modifier = Modifier) {
                     color = PrismaPalette.Crema,
                 )
                 Text(
-                    "Inteligencia · Agilidad · Control",
+                    "Inteligencia · Agilidad · Control · Crecimiento",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium, fontSize = 18.sp),
                     color = PrismaPalette.Dorado,
                 )

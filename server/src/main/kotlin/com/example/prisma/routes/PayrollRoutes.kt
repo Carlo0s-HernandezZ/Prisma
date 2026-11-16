@@ -303,7 +303,7 @@ fun Route.payrollRoutes(sessions: SessionStore) {
                         }
 
                     } finally {
-                        parte.dispose()
+                        parte.release()
                     }
                 }
 

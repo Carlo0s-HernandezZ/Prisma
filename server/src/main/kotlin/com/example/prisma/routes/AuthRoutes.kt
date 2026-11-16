@@ -2,6 +2,7 @@ package com.example.prisma.routes
 
 import com.example.prisma.api.ApiErrorCodes
 import com.example.prisma.api.ApiRules
+import com.example.prisma.api.Consent
 import com.example.prisma.api.ForgotPasswordRequest
 import com.example.prisma.api.GeneralResponse
 import com.example.prisma.api.LoginRequest
@@ -13,14 +14,18 @@ import com.example.prisma.api.Verify2faRequest
 import com.example.prisma.api.Verify2faResponse
 import com.example.prisma.auth.LoginRateLimiter
 import com.example.prisma.auth.PasswordResetStore
+import com.example.prisma.auth.ResetResult
+import com.example.prisma.auth.PendingResult
 import com.example.prisma.auth.Passwords
 import com.example.prisma.auth.SessionStore
 import com.example.prisma.db.DatabaseFactory.dbQuery
-import com.example.prisma.http.bearerToken
+import com.example.prisma.http.endSession
+import com.example.prisma.http.respondNewSession
 import com.example.prisma.http.isValidEmail
 import com.example.prisma.http.normalizeEmail
 import com.example.prisma.http.receiveOrBadRequest
 import com.example.prisma.http.respondError
+import com.example.prisma.models.ConsentimientosUsuarioTable
 import com.example.prisma.models.UsuariosTable
 import com.example.prisma.services.EmailService
 import com.example.prisma.utils.TotpUtils
@@ -34,12 +39,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.batchInsert
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
-import java.net.URLEncoder
 import java.util.UUID
 
 private const val UNIQUE_VIOLATION = "23505"
@@ -61,8 +66,17 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                     "La contraseña debe tener al menos ${ApiRules.MIN_PASSWORD_LENGTH} caracteres.",
                 )
             }
+            val missing = Consent.requiredOnes.filterNot { it in req.consentimientos }
+            if (missing.isNotEmpty()) {
+                return@post call.respondError(
+                    HttpStatusCode.BadRequest, ApiErrorCodes.CONSENT_REQUIRED,
+                    "Para crear tu cuenta debes aceptar las casillas obligatorias de Términos y Condiciones y Aviso de Privacidad.",
+                )
+            }
             val region = req.region.trim().uppercase().takeIf { it.length in 2..5 && it.all(Char::isLetter) } ?: "MX"
 
+            // La columna secreta_2fa es NOT NULL (heredada del 2FA por app); el 2FA ahora es solo por
+            // correo, así que se guarda un valor aleatorio que nunca se expone.
             val secret = TotpUtils.generateSecret()
             val hashedPassword = withContext(Dispatchers.Default) { Passwords.hash(req.password) }
 
@@ -74,12 +88,21 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                     if (exists) {
                         false
                     } else {
+                        val newUserId = UUID.randomUUID()
                         UsuariosTable.insert {
-                            it[id] = UUID.randomUUID()
+                            it[id] = newUserId
                             it[correoElectronico] = email
                             it[hashContrasena] = hashedPassword
                             it[secreta2fa] = secret
                             it[UsuariosTable.region] = region
+                        }
+                        // Constancia de cada casilla (marcada o no) en la misma transacción que el usuario.
+                        ConsentimientosUsuarioTable.batchInsert(Consent.entries) { consent ->
+                            this[ConsentimientosUsuarioTable.usuarioId] = newUserId
+                            this[ConsentimientosUsuarioTable.consentimiento] = consent.name
+                            this[ConsentimientosUsuarioTable.aceptado] = consent in req.consentimientos
+                            this[ConsentimientosUsuarioTable.obligatorio] = consent.required
+                            this[ConsentimientosUsuarioTable.versionDocumento] = Consent.DOCUMENT_VERSION
                         }
                         true
                     }
@@ -92,9 +115,7 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                 return@post call.respondError(HttpStatusCode.Conflict, ApiErrorCodes.EMAIL_TAKEN, "El correo ya está registrado.")
             }
 
-            val label = URLEncoder.encode("Prisma:$email", "UTF-8").replace("+", "%20")
-            val otpauthUrl = "otpauth://totp/$label?secret=$secret&issuer=Prisma"
-            call.respond(HttpStatusCode.Created, RegisterResponse("Usuario registrado.", secret, otpauthUrl))
+            call.respond(HttpStatusCode.Created, RegisterResponse("Usuario registrado."))
         }
 
         post("/login") {
@@ -137,16 +158,38 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
             }
 
             // Genera y envía por correo el código numérico de 2FA
-            call.respond(LoginResponse(sessions.createPending(userId = user.first, email = email, application = call.application)))
+            // El 2FA es únicamente por correo: se genera un código de 6 dígitos y se envía al usuario.
+            val challenge = sessions.createChallenge(user.first)
+            val sent = EmailService.sendEmail(
+                to = email,
+                subject = "Código de verificación - Prisma",
+                body = "Tu código para ingresar a Prisma es: ${challenge.code}\n\n" +
+                    "Este código expira en 5 minutos. Si no fuiste tú, cambia tu contraseña.",
+                application = call.application,
+            )
+            if (!sent) {
+                sessions.completePending(challenge.token)
+                return@post call.respondError(
+                    HttpStatusCode.ServiceUnavailable, ApiErrorCodes.EMAIL_FAILED,
+                    "No pudimos enviar el código a tu correo. Inténtalo de nuevo en unos minutos.",
+                )
+            }
+            call.respond(LoginResponse(challenge.token))
         }
 
         post("/verify-2fa") {
             val req = call.receiveOrBadRequest<Verify2faRequest>() ?: return@post
 
-            val userId = sessions.attemptPending(req.tempToken, req.code.trim())
-                ?: return@post call.respondError(
-                    HttpStatusCode.Gone, ApiErrorCodes.SESSION_EXPIRED, "La verificación expiró o el código es incorrecto.",
+            val userId = when (val result = sessions.verifyPending(req.tempToken, req.code.trim())) {
+                is PendingResult.Success -> result.userId
+                is PendingResult.WrongCode -> return@post call.respondError(
+                    HttpStatusCode.Unauthorized, ApiErrorCodes.INVALID_CODE,
+                    "Código incorrecto. Te quedan ${result.attemptsLeft} intentos.",
                 )
+                PendingResult.Expired -> return@post call.respondError(
+                    HttpStatusCode.Gone, ApiErrorCodes.SESSION_EXPIRED, "El código expiró. Inicia sesión de nuevo.",
+                )
+            }
 
             val userEmail = dbQuery {
                 UsuariosTable.selectAll()
@@ -155,7 +198,7 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                     ?.get(UsuariosTable.correoElectronico)
             } ?: ""
 
-            call.respond(Verify2faResponse(accessToken = sessions.createSession(userId), email = userEmail))
+            call.respondNewSession(sessions, sessions.createSession(userId), userEmail)
         }
 
         post("/forgot-password") {
@@ -163,6 +206,13 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
             val email = normalizeEmail(req.email)
             if (!isValidEmail(email)) {
                 return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Correo inválido.")
+            }
+            // Se limita antes de consultar la BD: la respuesta es igual exista o no la cuenta.
+            if (!passwordResetStore.allowRequest(email)) {
+                return@post call.respondError(
+                    HttpStatusCode.TooManyRequests, ApiErrorCodes.TOO_MANY_ATTEMPTS,
+                    "Ya pediste varios códigos. Espera 15 minutos o usa el último que te llegó.",
+                )
             }
 
             val userExists = dbQuery {
@@ -197,10 +247,18 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
                 )
             }
 
-            val valid = passwordResetStore.verifyAndConsume(email, code)
-            if (!valid) {
-                return@post call.respondError(
-                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Código de recuperación inválido o expirado.",
+            if (!isValidEmail(email)) {
+                return@post call.respondError(HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_REQUEST, "Correo inválido.")
+            }
+            when (val result = passwordResetStore.verifyAndConsume(email, code)) {
+                ResetResult.Success -> Unit
+                is ResetResult.WrongCode -> return@post call.respondError(
+                    HttpStatusCode.BadRequest, ApiErrorCodes.INVALID_CODE,
+                    "Código incorrecto. Te quedan ${result.attemptsLeft} intentos.",
+                )
+                ResetResult.Expired -> return@post call.respondError(
+                    HttpStatusCode.Gone, ApiErrorCodes.SESSION_EXPIRED,
+                    "El código expiró o se agotaron los intentos. Solicita uno nuevo.",
                 )
             }
 
@@ -213,6 +271,8 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
             }
 
             if (updated > 0) {
+                // Con la contraseña nueva ya puede entrar aunque antes la cuenta se hubiera bloqueado por intentos fallidos.
+                loginLimiter.reset(email)
                 call.respond(HttpStatusCode.OK, GeneralResponse("Contraseña actualizada exitosamente."))
             } else {
                 call.respondError(HttpStatusCode.NotFound, ApiErrorCodes.NOT_FOUND, "Usuario no encontrado.")
@@ -220,7 +280,7 @@ fun Route.authRoutes(sessions: SessionStore, loginLimiter: LoginRateLimiter) {
         }
 
         post("/logout") {
-            call.bearerToken()?.let(sessions::revoke)
+            call.endSession(sessions)
             call.respond(HttpStatusCode.NoContent)
         }
     }

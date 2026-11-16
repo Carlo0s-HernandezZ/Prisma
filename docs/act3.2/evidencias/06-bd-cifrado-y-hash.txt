@@ -1,0 +1,31 @@
+$ psql prisma_db  (usuario de prueba: alice.82c227@prisma.test)
+
+-- Datos personales tal como quedan guardados en PostgreSQL (AES-256-GCM):
+                         nombre                          |                        apellido                         
+---------------------------------------------------------+---------------------------------------------------------
+ enc:v1:tvbGTEELRc+5wJ8VQZW6JTn6J6JunNS/lzm8UOPyKCHaiA== | enc:v1:El38a252aMSVmU92psfotYeozybg4BXU8zz1mHNq+hfXYw==
+(1 row)
+
+-- La API se los devuelve descifrados solo a su dueño: {"nombre":"Alicia","apellido":"Prueba",...}
+
+-- Contraseñas: hash BCrypt ($2a$ = algoritmo, 12 = costo 2^12, los siguientes 22 caracteres = sal aleatoria):
+    correo_electronico    |                       hash_contrasena                        
+--------------------------+--------------------------------------------------------------
+ alice.82c227@prisma.test | $2a$12$9nTDq5kVu2OGhpCmuUW08Ocdtyde3S3NA3JcwBDeTVcSX3Xr90fXa
+ bob.82c227@prisma.test   | $2a$12$cR3RnwyQB1zOhTgHivI9g.FSW4rr6kHN.g8W5Xp1X7kX0fZaoBWJq
+(2 rows)
+
+-- Misma contraseña 'Prueba#Segura2026' en ambos usuarios → hashes distintos gracias a la sal.
+
+-- Consentimientos registrados al crear la cuenta:
+  consentimiento  | aceptado | obligatorio | version_documento 
+------------------+----------+-------------+-------------------
+ AvisoPrivacidad  | t        | t           | 2026-11
+ DatosFinancieros | t        | t           | 2026-11
+ EnvioIa          | t        | t           | 2026-11
+ TerminosUso      | t        | t           | 2026-11
+ Encuestas        | f        | f           | 2026-11
+ Estadisticas     | f        | f           | 2026-11
+ Novedades        | f        | f           | 2026-11
+(7 rows)
+

@@ -1,0 +1,11 @@
+# Copia este archivo como server/smtp.properties (está en .gitignore) y llena tus datos.
+# Las variables de entorno con el mismo nombre tienen prioridad sobre este archivo.
+#
+# Gmail: activa la verificación en dos pasos en tu cuenta de Google y crea una
+# "Contraseña de aplicación" en https://myaccount.google.com/apppasswords
+# Usa esa contraseña de 16 letras aquí (no tu contraseña normal).
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu_correo@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx
+SMTP_FROM=tu_correo@gmail.com

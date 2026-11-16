@@ -1,6 +1,7 @@
 
 package com.example.prisma.payroll
 
+import com.example.prisma.ui.PrismaMonthField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -11,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.Alignment
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -124,7 +128,8 @@ private fun FilaFinanciera(
 fun PayrollScreen(
     token: String,
     documentoSeleccionado: PayrollSelectedFile? = null,
-    onSeleccionarDocumento: (() -> Unit)? = null
+    onSeleccionarDocumento: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val repository = remember(token) {
         PayrollRepository(token)
@@ -356,11 +361,28 @@ fun PayrollScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        Text(
-            text = "Auditoría de Nómina",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            onBack?.let { navigateBack ->
+                IconButton(onClick = navigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver a ingresos",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            Text(
+                text = "Auditoría de Nómina",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         Text(
             text = "Carga un recibo PDF/XML o introduce " +
@@ -513,15 +535,15 @@ fun PayrollScreen(
             fontWeight = FontWeight.SemiBold
         )
 
-        CampoNomina(
-            titulo = "Periodo (AAAA-MM)",
-            valor = periodo,
-            cambiar = {
+        PrismaMonthField(
+            value = periodo,
+            onValueChange = {
                 periodo = it
                 resultado = null
             },
-            habilitado = !ocupado,
-            esPeriodo = true
+            label = "Periodo de nómina",
+            enabled = !ocupado,
+            modifier = Modifier.fillMaxWidth(),
         )
 
         CampoNomina(

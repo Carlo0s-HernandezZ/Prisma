@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuración de seguridad de red de Prisma (Android).
+  - cleartextTrafficPermitted="false": ninguna conexión HTTP sin cifrar está permitida.
+  - Solo se confía en las CA del sistema (no en las que instale el usuario, típicas de proxies MitM).
+    El servidor de Prisma (certificado autofirmado) se valida en código con su propio TrustManager
+    y Certificate Pinning (PlatformHttpClient.android.kt).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,5 +1,6 @@
 package com.example.prisma.biometric
 
+import com.example.prisma.storage.SecurePrefs
 import android.content.Context
 import android.content.ContextWrapper
 import android.security.keystore.KeyGenParameterSpec
@@ -46,7 +47,8 @@ private tailrec fun Context.findFragmentActivity(): FragmentActivity? = when (th
  */
 private class AndroidBiometricAuth(private val activity: FragmentActivity) : BiometricAuth {
 
-    private val prefs = activity.applicationContext.getSharedPreferences("prisma_biometric", Context.MODE_PRIVATE)
+    // EncryptedSharedPreferences (AES-256, llave en Android Keystore, MODE_PRIVATE). Migra el archivo viejo sin cifrar.
+    private val prefs = SecurePrefs.open(activity, legacyName = "prisma_biometric")
 
     override val availability: BiometricAvailability
         get() = when (BiometricManager.from(activity).canAuthenticate(BIOMETRIC_STRONG)) {

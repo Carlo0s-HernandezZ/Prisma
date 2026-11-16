@@ -1,0 +1,279 @@
+{
+	"@programName": "ZAP",
+	"@version": "2.17.0",
+	"@generated": "mi\u00E9, 11 nov 2026 17:45:26",
+	"created": "2026-11-11T23:45:26.874803Z",
+	"insights":[
+		{
+			"level": "Bajo",
+			"reason": "Advertencia",
+			"site": "",
+			"key": "insight.log.error",
+			"description": "ZAP errors logged - see the zap.log file for details",
+			"statistic": "2"
+		},
+		{
+			"level": "Bajo",
+			"reason": "Advertencia",
+			"site": "",
+			"key": "insight.log.warn",
+			"description": "ZAP warnings logged - see the zap.log file for details",
+			"statistic": "2"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "http://localhost:9080",
+			"key": "insight.code.3xx",
+			"description": "Percentage of responses with status code 3xx",
+			"statistic": "100"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "http://localhost:9080",
+			"key": "insight.endpoint.method.GET",
+			"description": "Percentage of endpoints with method GET",
+			"statistic": "100"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "http://localhost:9080",
+			"key": "insight.endpoint.total",
+			"description": "Count of total endpoints",
+			"statistic": "1"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.code.2xx",
+			"description": "Percentage of responses with status code 2xx",
+			"statistic": "7"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.code.4xx",
+			"description": "Percentage of responses with status code 4xx",
+			"statistic": "92"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.ctype.application/json",
+			"description": "Percentage of endpoints with content type application/json",
+			"statistic": "92"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.ctype.text/plain",
+			"description": "Percentage of endpoints with content type text/plain",
+			"statistic": "3"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.method.DELETE",
+			"description": "Percentage of endpoints with method DELETE",
+			"statistic": "14"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.method.GET",
+			"description": "Percentage of endpoints with method GET",
+			"statistic": "21"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.method.POST",
+			"description": "Percentage of endpoints with method POST",
+			"statistic": "57"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.method.PUT",
+			"description": "Percentage of endpoints with method PUT",
+			"statistic": "7"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.endpoint.total",
+			"description": "Count of total endpoints",
+			"statistic": "28"
+		},
+		{
+			"level": "Información",
+			"reason": "Informativo",
+			"site": "https://localhost:9443",
+			"key": "insight.response.slow",
+			"description": "Percentage of slow responses",
+			"statistic": "4"
+		}
+	],
+	"site":[ 
+		{
+			"@name": "http://localhost:9080",
+			"@host": "localhost",
+			"@port": "9080",
+			"@ssl": "false",
+			"alerts": [ 
+			]
+		},
+		{
+			"@name": "https://localhost:9443",
+			"@host": "localhost",
+			"@port": "9443",
+			"@ssl": "true",
+			"alerts": [ 
+				{
+					"pluginid": "10010",
+					"alertRef": "10010",
+					"alert": "Cookie Sin Flag HttpOnly",
+					"name": "Cookie Sin Flag HttpOnly",
+					"riskcode": "1",
+					"confidence": "2",
+					"riskdesc": "Bajo (Media)",
+					"desc": "<p>Se ha establecido una cookie sin el flag HttpOnly, lo que significa que JavaScript puede acceder a la cookie. Si un script malicioso puede ser ejecutado en esta p\u00E1gina, entonces la cookie ser\u00E1 accesible y puede ser transmitida a otro sitio. Si se trata de una cookie de sesi\u00F3n, el secuestro de sesi\u00F3n puede ser posible.</p>",
+					"instances":[ 
+						{
+							"id": "3",
+							"uri": "https://localhost:9443/api/v1/auth/logout",
+							"nodeName": "https:\/\/localhost:9443\/api\/v1\/auth\/logout",
+							"method": "POST",
+							"param": "__Host-prisma_csrf",
+							"attack": "",
+							"evidence": "Set-Cookie: __Host-prisma_csrf",
+							"otherinfo": ""
+						}
+					],
+					"count": "1",
+					"systemic": false,
+					"solution": "<p>Aseg\u00FArese de que la flag HttpOnly est\u00E1 establecida para todas las cookies.</p>",
+					"otherinfo": "",
+					"reference": "<p>https://owasp.org/www-community/HttpOnly</p>",
+					"cweid": "1004",
+					"wascid": "13",
+					"sourceid": "10"
+				},
+				{
+					"pluginid": "10111",
+					"alertRef": "10111",
+					"alert": "Petici\u00F3n de Autenticaci\u00F3n Identificada",
+					"name": "Petici\u00F3n de Autenticaci\u00F3n Identificada",
+					"riskcode": "0",
+					"confidence": "1",
+					"riskdesc": "Informativo (Baja)",
+					"desc": "<p>La petici\u00F3n en cuesti\u00F3n se ha identificado como una petici\u00F3n de autenticaci\u00F3n. El campo \"Otra informaci\u00F3n\" contiene un conjunto de l\u00EDneas key=vvalue que identifican cualquier campo relevante. Si la solicitud est\u00E1 en un contexto que tiene un m\u00E9todo de autenticaci\u00F3n configurado como \"Detecci\u00F3n autom\u00E1tica\", esta regla cambiar\u00E1 la autenticaci\u00F3n para que coincida con la petici\u00F3n identificada.</p>",
+					"instances":[ 
+						{
+							"id": "2",
+							"uri": "https://localhost:9443/api/v1/auth/reset-password",
+							"nodeName": "https:\/\/localhost:9443\/api\/v1\/auth\/reset-password ()({email,code,newPassword})",
+							"method": "POST",
+							"param": "email",
+							"attack": "",
+							"evidence": "newPassword",
+							"otherinfo": "userParam=email\nuserValue=zaproxy@example.com\npasswordParam=newPassword"
+						},
+						{
+							"id": "1",
+							"uri": "https://localhost:9443/api/v1/auth/login",
+							"nodeName": "https:\/\/localhost:9443\/api\/v1\/auth\/login ()({email,password})",
+							"method": "POST",
+							"param": "email",
+							"attack": "",
+							"evidence": "password",
+							"otherinfo": "userParam=email\nuserValue=zaproxy@example.com\npasswordParam=password"
+						}
+					],
+					"count": "2",
+					"systemic": false,
+					"solution": "<p>Se trata de una alerta informativa y no de una vulnerabilidad, por lo que no hay nada que corregir.</p>",
+					"otherinfo": "<p>userParam=email</p><p>userValue=zaproxy@example.com</p><p>passwordParam=newPassword</p>",
+					"reference": "<p>https://www.zaproxy.org/docs/desktop/addons/authentication-helper/auth-req-id/</p>",
+					"cweid": "-1",
+					"wascid": "-1",
+					"sourceid": "9"
+				},
+				{
+					"pluginid": "10015",
+					"alertRef": "10015",
+					"alert": "Reexaminar las Directivas de Control de Cach\u00E9",
+					"name": "Reexaminar las Directivas de Control de Cach\u00E9",
+					"riskcode": "0",
+					"confidence": "1",
+					"riskdesc": "Informativo (Baja)",
+					"desc": "<p>La cabecera cache-control no se ha configurado correctamente o falta, lo que permite al navegador y a los proxies almacenar contenido en cach\u00E9. Para activos est\u00E1ticos como css, js, o archivos de imagen esto puede ser intencionado, sin embargo, los recursos deben ser revisados para asegurar que ning\u00FAn contenido sensible ser\u00E1 cacheado.</p>",
+					"instances":[ 
+						{
+							"id": "4",
+							"uri": "https://localhost:9443/",
+							"nodeName": "https:\/\/localhost:9443\/",
+							"method": "GET",
+							"param": "cache-control",
+							"attack": "",
+							"evidence": "no-store",
+							"otherinfo": ""
+						}
+					],
+					"count": "1",
+					"systemic": false,
+					"solution": "<p>Para contenido seguro, aseg\u00FArese de que la cabecera HTTP cache-control est\u00E1 configurada con \u00ABno-cache, no-store, must-revalidate\u00BB. Si un activo debe almacenarse en cach\u00E9, considere establecer las directivas \u00ABpublic, max-age, immutable\u00BB.</p>",
+					"otherinfo": "",
+					"reference": "<p>https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#web-content-caching</p><p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control</p><p>https://grayduck.mn/2021/09/13/cache-control-recommendations/</p>",
+					"cweid": "525",
+					"wascid": "13",
+					"sourceid": "41"
+				},
+				{
+					"pluginid": "10004",
+					"alertRef": "10004",
+					"alert": "Tecnolog\u00EDa Detectada - HSTS",
+					"name": "Tecnolog\u00EDa Detectada - HSTS",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informativo (Media)",
+					"desc": "<p>Las siguientes \"Security\" tecnolog\u00EDas han sido identificadas: HSTS.</p><p>Descrita como:</p><p>HTTP Strict Transport Security (HSTS) informs browsers that the site should only be accessed using HTTPS.</p>",
+					"instances":[ 
+						{
+							"id": "0",
+							"uri": "https://localhost:9443/api/v1/auth/register",
+							"nodeName": "https:\/\/localhost:9443\/api\/v1\/auth\/register ()({email,password,region,consentimientos:[]})",
+							"method": "POST",
+							"param": "",
+							"attack": "",
+							"evidence": "Strict-Transport-Security",
+							"otherinfo": ""
+						}
+					],
+					"count": "1",
+					"systemic": false,
+					"solution": "",
+					"otherinfo": "",
+					"reference": "<p>https://www.rfc-editor.org/rfc/rfc6797#section-6.1</p>",
+					"cweid": "-1",
+					"wascid": "13",
+					"sourceid": "1"
+				}
+			]
+		}
+	],
+	"sequences":[
+	]
+
+}
