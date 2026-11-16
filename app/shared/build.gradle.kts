@@ -177,6 +177,7 @@ kotlin {
         }
         commonMain.dependencies {
             api(project(":core"))
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)

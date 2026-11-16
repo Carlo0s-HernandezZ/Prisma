@@ -3,7 +3,6 @@ package com.example.prisma.routes
 import com.example.prisma.api.CardDocumentDto
 import com.example.prisma.models.DocumentosTarjetaTable
 import com.example.prisma.services.ParsedStatementData
-import com.example.prisma.services.ServerStatementParser
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.content.streamProvider
@@ -338,18 +337,13 @@ fun Route.cardRoutes(sessions: SessionStore) {
                 )
             val fileName = UploadValidation.safeFileName(originalName, mimeType)
 
-            val parsed = if (mimeType == "application/pdf") {
-                ServerStatementParser.parsePdfBytes(bytes)
-            } else {
-                ParsedStatementData(
-                    montoPesos = null,
-                    totalAbonos = null,
-                    periodo = null,
-                    fechaCorte = null,
-                    fechaPago = null,
-                    rawTextSummary = null,
-                )
-            }
+            // El historial conserva los metadatos del archivo.
+// La extracción financiera se realiza mediante StatementFinancialParser.
+            val parsed = ParsedStatementData(
+                montoPesos = null,
+                totalAbonos = null,
+                rawTextSummary = null,
+            )
 
             val montoDecimal = parsed.montoPesos?.toBigDecimalOrNull()
 

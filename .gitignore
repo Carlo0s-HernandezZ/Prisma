@@ -25,3 +25,5 @@ smtp.properties
 .env
 !.env.example
 server/certs/*.p12
+
+/server/.env.save
