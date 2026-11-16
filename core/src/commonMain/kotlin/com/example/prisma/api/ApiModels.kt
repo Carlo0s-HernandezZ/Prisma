@@ -11,7 +11,7 @@ object ApiRules {
     const val TOTP_CODE_LENGTH = 6
     const val MAX_NAME_LENGTH = 100
 
-    /** Con acceso biométrico, el código de Google Authenticator se pide de nuevo cada estas horas. */
+    /** Con acceso biométrico, el código 2FA por correo se pide de nuevo cada estas horas. */
     const val TWO_FACTOR_WINDOW_HOURS = 24
 }
 
@@ -22,6 +22,8 @@ object ApiErrorCodes {
     const val INVALID_CODE = "invalid_code"
     const val SESSION_EXPIRED = "session_expired"
     const val UNAUTHORIZED = "unauthorized"
+    /** Escritura autenticada por cookie sin el token anti-CSRF correcto (cabecera X-CSRF-Token). */
+    const val CSRF_INVALID = "csrf_invalid"
     const val EMAIL_TAKEN = "email_taken"
     const val WEAK_PASSWORD = "weak_password"
     const val TOO_MANY_ATTEMPTS = "too_many_attempts"
@@ -30,6 +32,10 @@ object ApiErrorCodes {
     const val TWO_FACTOR_REQUIRED = "two_factor_required"
     /** El dispositivo ya no tiene acceso biométrico (desactivado o eliminado). */
     const val BIOMETRIC_REVOKED = "biometric_revoked"
+    /** El servidor no pudo enviar el código 2FA por correo. */
+    const val EMAIL_FAILED = "email_failed"
+    /** Faltan casillas obligatorias de Términos / Aviso de Privacidad al registrarse. */
+    const val CONSENT_REQUIRED = "consent_required"
 }
 
 @Serializable
@@ -56,17 +62,48 @@ data class LoginResponse(val tempToken: String)
 data class Verify2faRequest(val tempToken: String, val code: String)
 
 @Serializable
-data class Verify2faResponse(val accessToken: String, val email: String)
-
-@Serializable
-data class RegisterRequest(val email: String, val password: String, val region: String = "MX")
-
-@Serializable
-data class RegisterResponse(
-    val message: String,
-    val secret2fa: String,
-    val otpauthUrl: String,
+data class Verify2faResponse(
+    val accessToken: String,
+    val email: String,
+    /** Token anti-CSRF de la sesión: se envía en la cabecera X-CSRF-Token al usar la cookie de sesión. */
+    val csrfToken: String = "",
 )
+
+/**
+ * Casillas que aparecen al crear la cuenta (documento "Términos y Condiciones / Aviso de Privacidad").
+ * Las [required] son obligatorias para usar PRISMA: sin ellas el servidor rechaza el registro.
+ * Las demás son opcionales y no afectan el servicio.
+ */
+@Serializable
+enum class Consent(val required: Boolean, val text: String) {
+    TerminosUso(true, "He leído y acepto los Términos y Condiciones de Uso (Parte A)."),
+    AvisoPrivacidad(true, "He leído el Aviso de Privacidad Integral (Parte B)."),
+    DatosFinancieros(true, "Otorgo mi consentimiento expreso para el tratamiento de mis datos financieros y patrimoniales para las finalidades necesarias."),
+    EnvioIa(true, "Autorizo el envío de mis documentos, ya anonimizados, al proveedor de IA para su análisis."),
+    Estadisticas(false, "Acepto el uso de datos agregados o anonimizados para estadísticas y mejora del producto."),
+    Encuestas(false, "Acepto recibir invitaciones a encuestas de usabilidad."),
+    Novedades(false, "Acepto recibir novedades de PRISMA.");
+
+    companion object {
+        val requiredOnes: List<Consent> get() = entries.filter { it.required }
+        val optionalOnes: List<Consent> get() = entries.filterNot { it.required }
+
+        /** Versión del documento aceptado; se guarda junto con cada consentimiento. */
+        const val DOCUMENT_VERSION = "2026-11"
+    }
+}
+
+@Serializable
+data class RegisterRequest(
+    val email: String,
+    val password: String,
+    val region: String = "MX",
+    /** Casillas marcadas por el usuario. Debe incluir todas las obligatorias. */
+    val consentimientos: Set<Consent> = emptySet(),
+)
+
+@Serializable
+data class RegisterResponse(val message: String)
 
 // ---------- Perfil ----------
 
@@ -108,6 +145,13 @@ data class CreateIncomeRequest(
     val montoNeto: String,
 )
 
+/** Edición de un ingreso existente (PUT /api/v1/incomes/{id}). Mismo formato que al crear. */
+@Serializable
+data class UpdateIncomeRequest(
+    val nombre: String,
+    val montoNeto: String,
+)
+
 @Serializable
 data class IncomeDto(
     val id: String,
@@ -134,23 +178,41 @@ object IncomeRules {
     const val MAX_NAME_LENGTH = 100
 }
 
-// ---------- Tarjetas de Crédito ----------
+// ---------- Tarjetas ----------
 
 @Serializable
-data class CreateCardRequest(
-    /** Nombre del banco, p. ej. "BBVA", "Citibanamex", "Nu". */
+data class CardDto(
+    val id: String,
     val banco: String,
-    /** Alias o apodo de la tarjeta, p. ej. "Tarjeta Principal", "Gastos Diarios". */
     val alias: String,
-    /** Últimos 4 dígitos opcionales de la tarjeta, p. ej. "1234". */
     val ultimosCuatro: String? = null,
     /** Día del mes del corte (1..31). */
     val diaCorte: Int? = null,
-    /** Hora para recordatorio de corte en formato "HH:mm" (p. ej. "09:00"). */
+    /** Hora del recordatorio de corte, "HH:mm". */
     val horaNotificacionCorte: String? = null,
     /** Día del mes del pago (1..31). */
     val diaPago: Int? = null,
-    /** Hora para recordatorio de pago en formato "HH:mm" (p. ej. "20:00"). */
+    /** Hora del recordatorio de pago, "HH:mm". */
+    val horaNotificacionPago: String? = null,
+    /** Fecha y hora local del registro, formato ISO "yyyy-MM-ddTHH:mm". */
+    val fechaRegistro: String = "",
+)
+
+object CardRules {
+    const val MAX_BANK_LENGTH = 100
+    const val MAX_ALIAS_LENGTH = 150
+    const val LAST_FOUR_LENGTH = 4
+    val VALID_DAYS = 1..31
+}
+
+@Serializable
+data class CreateCardRequest(
+    val banco: String,
+    val alias: String,
+    val ultimosCuatro: String? = null,
+    val diaCorte: Int? = null,
+    val horaNotificacionCorte: String? = null,
+    val diaPago: Int? = null,
     val horaNotificacionPago: String? = null,
 )
 
@@ -166,25 +228,29 @@ data class UpdateCardRequest(
 )
 
 @Serializable
-data class CardDto(
+data class CardDocumentDto(
     val id: String,
-    val banco: String,
-    val alias: String,
-    val ultimosCuatro: String? = null,
-    val diaCorte: Int? = null,
-    val horaNotificacionCorte: String? = null,
-    val diaPago: Int? = null,
-    val horaNotificacionPago: String? = null,
-    /** Fecha y hora local del registro, formato ISO "yyyy-MM-ddTHH:mm". */
-    val fechaRegistro: String,
+    val tarjetaId: String,
+    val nombreArchivo: String,
+    val tipoMime: String,
+    val urlODatos: String,
+    val montoPesos: String? = null,
+    val periodo: String? = null,
+    val fechaCorte: String? = null,
+    val fechaPago: String? = null,
+    val fechaRegistro: String? = null,
 )
 
-object CardRules {
-    const val MAX_BANK_LENGTH = 100
-    const val MAX_ALIAS_LENGTH = 150
-    const val LAST_FOUR_LENGTH = 4
-    val VALID_DAYS = 1..31
-}
+@Serializable
+data class CreateCardDocumentRequest(
+    val nombreArchivo: String,
+    val tipoMime: String,
+    val urlODatos: String,
+    val montoPesos: String? = null,
+    val periodo: String? = null,
+    val fechaCorte: String? = null,
+    val fechaPago: String? = null,
+)
 
 // ---------- Acceso biométrico ----------
 

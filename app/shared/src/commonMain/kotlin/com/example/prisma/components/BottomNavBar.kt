@@ -70,7 +70,7 @@ import kotlin.math.roundToInt
 enum class NavDestination(val icon: ImageVector, val description: String, val label: String) {
     Home(Icons.Filled.Home, "Inicio", "Inicio"),
     Stats(Icons.Filled.PieChart, "Estadísticas", "Resumen"),
-    Assistant(Icons.Filled.SmartToy, "Asistente IA", "Asistente"),
+    Assistant(Icons.Filled.SmartToy, "Análisis", "Análisis"),
     Cards(Icons.Filled.CreditCard, "Tarjetas", "Tarjetas"),
     Profile(Icons.Filled.Person, "Perfil", "Perfil"),
 }

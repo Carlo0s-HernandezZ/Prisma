@@ -16,6 +16,13 @@ import com.example.prisma.http.CSRF_HEADER
 import com.example.prisma.security.DataCipher
 import com.example.prisma.security.SecurityHeaders
 import com.example.prisma.services.EmailService
+import com.example.prisma.routes.incomePlanningRoutes
+import com.example.prisma.routes.budgetRoutes
+import com.example.prisma.routes.statementRoutes
+import com.example.prisma.routes.statementConfirmationRoutes
+import com.example.prisma.routes.statementPaymentsRoutes
+import com.example.prisma.routes.automaticStatementRoutes
+import com.example.prisma.routes.cardPlanRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -178,5 +185,14 @@ fun Application.module(
         dashboardRoutes(sessions)
         incomeRoutes(sessions)
         payrollRoutes(sessions)
+        incomeRoutes(sessions)
+        incomePlanningRoutes(sessions)
+        payrollRoutes(sessions)
+        budgetRoutes(sessions)
+        statementRoutes(sessions)
+        statementConfirmationRoutes(sessions)
+        statementPaymentsRoutes(sessions)
+        automaticStatementRoutes(sessions)
+        cardPlanRoutes(sessions)
     }
 }

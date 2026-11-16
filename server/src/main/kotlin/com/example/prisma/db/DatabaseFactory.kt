@@ -11,11 +11,23 @@ import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransacti
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
+
     fun init() {
-        // Credenciales desde variables de entorno o server/.env (nunca escritas en el código).
-        val dbUrl = AppConfig.get("JDBC_DATABASE_URL", "jdbc:postgresql://localhost:5432/prisma_db")
-        val dbUser = AppConfig.get("DB_USER", "postgres")
-        val dbPassword = requireNotNull(AppConfig.get("DB_PASSWORD")) { "Falta DB_PASSWORD en server/.env" }
+        val dbUrl = AppConfig.get(
+            "JDBC_DATABASE_URL",
+            "jdbc:postgresql://localhost:5432/prisma_db",
+        )
+
+        val dbUser = AppConfig.get(
+            "DB_USER",
+            "postgres",
+        )
+
+        val dbPassword = requireNotNull(
+            AppConfig.get("DB_PASSWORD"),
+        ) {
+            "Falta DB_PASSWORD en server/.env"
+        }
 
         val config = HikariConfig().apply {
             driverClassName = "org.postgresql.Driver"
@@ -29,6 +41,7 @@ object DatabaseFactory {
         }
 
         Database.connect(HikariDataSource(config))
+
         transaction {
             SchemaUtils.create(
                 UsuariosTable,
@@ -37,14 +50,20 @@ object DatabaseFactory {
                 TarjetasCreditoTable,
                 DocumentosTarjetaTable,
                 IngresosTable,
+                IngresosPlanificacionTable,
+                PresupuestosTable,
                 TransaccionesTable,
-                CategoriasTable
+                CategoriasTable,
+                EstadosCuentaConfirmadosTable,
+                PagosEstadoTable,
+                LecturasEstadoTable,
             )
         }
     }
 
-    suspend fun <T> dbQuery(block: () -> T): T =
-        newSuspendedTransaction(Dispatchers.IO) {
+    suspend fun <T> dbQuery(block: () -> T): T {
+        return newSuspendedTransaction(Dispatchers.IO) {
             block()
         }
+    }
 }

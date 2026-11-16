@@ -727,4 +727,3 @@ private fun extraerPeriodoPdf(texto: String): String? {
 
     return buscarPareja(pareja.value)
 }
-

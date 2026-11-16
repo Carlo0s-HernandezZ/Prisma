@@ -48,6 +48,19 @@ class IncomeViewModel(private val repository: IncomeRepository) : ViewModel() {
     private val _state = MutableStateFlow(IncomeUiState())
     val state: StateFlow<IncomeUiState> = _state.asStateFlow()
 
+    val planning = IncomePlanningController(
+        repository = repository,
+        scope = viewModelScope,
+        onSessionExpired = {
+            _state.update {
+                it.copy(sessionExpired = true)
+            }
+        },
+        onIncomeMissing = {
+            refresh()
+        },
+    )
+
     init {
         refresh()
     }

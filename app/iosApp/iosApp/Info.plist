@@ -4,6 +4,18 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- «Volver a Prisma» desde la página de Términos (prisma://abrir): solo abre la app. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.example.prisma</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>prisma</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Prisma usa Face ID para que entres a tu cuenta sin escribir tu contraseña.</string>
 	<key>NSAppTransportSecurity</key>

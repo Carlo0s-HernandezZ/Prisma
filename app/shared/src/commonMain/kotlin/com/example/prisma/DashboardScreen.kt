@@ -21,7 +21,23 @@ import androidx.compose.ui.unit.dp
 import com.example.prisma.components.*
 import com.example.prisma.ui.Prisma
 import com.example.prisma.ui.PrismaPalette
-import com.example.prisma.ui.SkeletonBox
+import com.example.prisma.ui.SkeletonCircle
+import com.example.prisma.ui.SkeletonText
+import com.example.prisma.ui.SkeletonTextFraction
+import com.example.prisma.ui.drawSkeletonShine
+import com.example.prisma.ui.loadingSemantics
+import com.example.prisma.ui.rememberSkeletonProgress
+import com.example.prisma.ui.skeletonColors
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 import com.example.prisma.ui.isDesktopLayout
 import com.example.prisma.ui.screenContainer
 
@@ -57,59 +73,142 @@ fun DashboardScreen(
     }
 }
 
+/**
+ * Esqueleto del Inicio: misma estructura que la pantalla real (saludo y estado arriba,
+ * radar con su leyenda y alertas; lado a lado en escritorio ancho).
+ */
 @Composable
 fun DashboardSkeleton(
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.fillMaxSize().background(Prisma.colors.background), contentAlignment = Alignment.TopCenter) {
+    val type = MaterialTheme.typography
+    Box(
+        modifier.fillMaxSize().background(Prisma.colors.background).loadingSemantics("Cargando tu resumen"),
+        contentAlignment = Alignment.TopCenter,
+    ) {
         Column(
             modifier = Modifier.screenContainer(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isDesktopLayout) 24.dp else 16.dp),
         ) {
-            // Header Skeleton
+            // Encabezado: "Hola, …" y "Estado: ●"
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                SkeletonBox(Modifier.width(140.dp), height = 44.dp, shape = RoundedCornerShape(16.dp))
-                SkeletonBox(Modifier.width(120.dp), height = 44.dp, shape = RoundedCornerShape(16.dp))
+                Pill { SkeletonText(type.bodyLarge, 110.dp) }
+                Pill {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SkeletonText(type.bodyLarge, 58.dp)
+                        SkeletonCircle(20.dp)
+                    }
+                }
             }
 
-            // Cards Skeleton
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                // Radar Card Skeleton
-                SoftCard(Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
-                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
-                            SkeletonBox(Modifier.width(70.dp), height = 16.dp)
+                if (!isDesktopLayout) {
+                    RadarCardSkeleton()
+                    AlertsCardSkeleton()
+                } else {
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth >= 960.dp) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Top) {
+                                RadarCardSkeleton(Modifier.weight(1f).widthIn(max = 620.dp))
+                                AlertsCardSkeleton(Modifier.weight(1f))
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                                RadarCardSkeleton(Modifier.widthIn(max = 620.dp).align(Alignment.CenterHorizontally))
+                                AlertsCardSkeleton()
+                            }
                         }
-                        SkeletonBox(Modifier.fillMaxWidth().aspectRatio(1.05f), shape = RoundedCornerShape(20.dp))
-                    }
-                }
-
-                // Alerts Card Skeleton
-                SoftCard(Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        SkeletonBox(Modifier.fillMaxWidth(), height = 48.dp, shape = RoundedCornerShape(16.dp))
-                        SkeletonBox(Modifier.fillMaxWidth(), height = 48.dp, shape = RoundedCornerShape(16.dp))
-                        SkeletonBox(Modifier.fillMaxWidth(), height = 52.dp, shape = RoundedCornerShape(16.dp))
                     }
                 }
             }
+        }
+    }
+}
 
+@Composable
+private fun RadarCardSkeleton(modifier: Modifier = Modifier) {
+    SoftCard(modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Leyenda: Ingresos · Gastos · Inversión
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                listOf(52.dp, 44.dp, 56.dp).forEach { w ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SkeletonCircle(8.dp)
+                        SkeletonText(MaterialTheme.typography.labelSmall, w)
+                    }
+                }
+            }
+            RadarSkeleton(
+                axes = 5,
+                modifier = Modifier
+                    .padding(horizontal = if (isDesktopLayout) 24.dp else 0.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1.05f),
+            )
+        }
+    }
+}
+
+/** Pentágono del radar y etiquetas de sus ejes, con la misma geometría que RadarChart. */
+@Composable
+private fun RadarSkeleton(axes: Int, modifier: Modifier = Modifier) {
+    val colors = skeletonColors()
+    val progress = rememberSkeletonProgress()
+    Canvas(modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = min(size.width / 2f - 56.dp.toPx(), size.height / 2f - 22.dp.toPx())
+        fun point(i: Int, r: Float): Offset {
+            val a = (-PI / 2 + i * 2 * PI / axes).toFloat()
+            return Offset(center.x + r * cos(a), center.y + r * sin(a))
+        }
+        val polygon = Path().apply {
+            for (i in 0 until axes) {
+                val p = point(i, radius)
+                if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+            }
+            close()
+        }
+        clipPath(polygon) {
+            drawRect(colors.base)
+            drawSkeletonShine(progress.value, colors.shine)
+        }
+        // Etiquetas de los ejes (texto de 10 sp en el radar real).
+        val labelW = 64.dp.toPx()
+        val labelH = 8.dp.toPx()
+        for (i in 0 until axes) {
+            val p = point(i, radius + 16.dp.toPx())
+            val left = (p.x - labelW / 2f).coerceIn(0f, size.width - labelW)
+            drawRoundRect(
+                color = colors.base,
+                topLeft = Offset(left, p.y - labelH / 2f),
+                size = Size(labelW, labelH),
+                cornerRadius = CornerRadius(labelH / 2f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlertsCardSkeleton(modifier: Modifier = Modifier) {
+    val type = MaterialTheme.typography
+    SoftCard(modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            // "Tu tarjeta … vence en … días." (dos alertas de ejemplo)
+            listOf(0.85f, 0.7f).forEach { f ->
+                Pill(Modifier.fillMaxWidth()) { SkeletonTextFraction(type.bodyMedium, f) }
+            }
+            // "Tu total a pagar este mes es de $…"
+            Pill(Modifier.fillMaxWidth()) { SkeletonTextFraction(type.titleMedium, 0.9f) }
         }
     }
 }

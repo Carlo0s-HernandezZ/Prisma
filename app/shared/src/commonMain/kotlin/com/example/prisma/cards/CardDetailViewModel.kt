@@ -65,7 +65,7 @@ class CardDetailViewModel(
                         it.copy(
                             isUploading = stillUploading,
                             documents = listOf(doc) + it.documents,
-                            message = "Estado de cuenta procesado y extraído exitosamente.",
+                            message = "Documento agregado al historial. Usa Leer archivos para revisar los importes.",
                             isError = false
                         )
                     }
