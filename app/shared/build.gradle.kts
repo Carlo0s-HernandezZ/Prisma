@@ -195,9 +195,15 @@ kotlin {
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
             implementation(libs.ktor.clientJs)
+
+            // Zonas horarias IANA para kotlinx-datetime.
+            implementation(npm("@js-joda/timezone", "2.22.0"))
         }
         wasmJsMain.dependencies {
             implementation(libs.ktor.clientJs)
+
+            // Zonas horarias para la versión Wasm.
+            implementation(npm("@js-joda/timezone", "2.22.0"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
