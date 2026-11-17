@@ -48,6 +48,10 @@ import com.example.prisma.biometric.BiometricEnableResult
 import com.example.prisma.biometric.BiometricKind
 import com.example.prisma.biometric.rememberBiometricController
 import com.example.prisma.budget.BudgetViewModel
+import com.example.prisma.analysis.AnalysisViewModel
+import com.example.prisma.analysis.KtorAnalysisRepository
+import com.example.prisma.ui.AnalysisHubScreen
+import com.example.prisma.ui.SpendingSummaryScreen
 import com.example.prisma.budget.KtorBudgetRepository
 import com.example.prisma.cards.CardDetailViewModel
 import com.example.prisma.cards.CardViewModel
@@ -68,9 +72,7 @@ import com.example.prisma.profile.ProfileViewModel
 import com.example.prisma.ui.AppTheme
 import com.example.prisma.ui.BiometricSetting
 import com.example.prisma.ui.CardDetailScreen
-import com.example.prisma.ui.CardPlansScreen
 import com.example.prisma.ui.CardsScreen
-import com.example.prisma.ui.ComingSoonScreen
 import com.example.prisma.ui.LoginScreen
 import com.example.prisma.ui.Prisma
 import com.example.prisma.ui.ProfileScreen
@@ -396,11 +398,34 @@ fun HomeScreen(
     val state by dashboardViewModel.uiState
         .collectAsStateWithLifecycle()
 
+    // Análisis con IA y dashboards: lo comparten Análisis y Resumen.
+    val analysisViewModel = viewModel(
+        key = "analysis-$token",
+    ) {
+        AnalysisViewModel(
+            KtorAnalysisRepository(token),
+            KtorCardRepository(token),
+        )
+    }
+
+    val analysisState by analysisViewModel.state
+        .collectAsStateWithLifecycle()
+
+    // Al volver a Análisis o Resumen se recargan tarjetas, análisis y dashboard.
+    LaunchedEffect(selectedDestination) {
+        if (
+            selectedDestination == NavDestination.Assistant ||
+            selectedDestination == NavDestination.Stats
+        ) {
+            analysisViewModel.reload()
+        }
+    }
+
     // Permite que los efectos utilicen el callback de cierre actualizado.
     val currentOnLogout by rememberUpdatedState(onLogout)
 
-    LaunchedEffect(state.sessionExpired) {
-        if (state.sessionExpired) {
+    LaunchedEffect(state.sessionExpired, analysisState.sessionExpired) {
+        if (state.sessionExpired || analysisState.sessionExpired) {
             currentOnLogout()
         }
     }
@@ -466,7 +491,17 @@ fun HomeScreen(
                     DashboardScreen(
                         state = state,
                         onRetry = dashboardViewModel::refresh,
+                        onOpenAnalysis = {
+                            selectedDestination = NavDestination.Assistant
+                        },
                     )
+                }
+
+                // ---------------------------------------------------
+                // Resumen: dashboard de gastos mes con mes
+                // ---------------------------------------------------
+                NavDestination.Stats -> {
+                    SpendingSummaryScreen(analysisViewModel)
                 }
 
                 // ---------------------------------------------------
@@ -661,26 +696,18 @@ fun HomeScreen(
                     }
 
                     /*
-                     * Esta es la única pantalla principal de Análisis.
-                     *
-                     * CardPlansScreen muestra los planes y abre internamente
-                     * AnalysisScreen al configurar dinero, gastos y reserva.
-                     *
-                     * No se dibuja AnalysisScreen aquí, porque ambas
-                     * pantallas terminarían superpuestas.
+                     * Análisis tiene tres pestañas: Análisis IA, Mis gastos y
+                     * Planes de pago (CardPlansScreen, que abre internamente
+                     * AnalysisScreen al configurar dinero, gastos y reserva).
                      */
-                    CardPlansScreen(
-                        viewModel = budgetViewModel,
+                    AnalysisHubScreen(
+                        viewModel = analysisViewModel,
+                        budgetViewModel = budgetViewModel,
                         token = token,
                         onSessionExpired = {
                             currentOnLogout()
                         },
                     )
-                }
-
-                // Destinos que todavía utilizan la pantalla de próximo acceso.
-                else -> {
-                    ComingSoonScreen(destination)
                 }
             }
         }

@@ -295,6 +295,8 @@ fun CardPlansScreen(
     viewModel: BudgetViewModel,
     token: String,
     onSessionExpired: () -> Unit,
+    /** false cuando la pantalla va dentro de otra que ya muestra el título (pestañas de Análisis). */
+    showTitle: Boolean = true,
 ) {
     val budget by viewModel.state.collectAsStateWithLifecycle()
 
@@ -348,11 +350,13 @@ fun CardPlansScreen(
             .screenContainer(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            "Análisis",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+        if (showTitle) {
+            Text(
+                "Análisis",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
 
         PrismaMonthField(
             budget.periodo,

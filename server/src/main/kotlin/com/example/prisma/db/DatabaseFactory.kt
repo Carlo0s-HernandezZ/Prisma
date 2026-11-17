@@ -57,6 +57,9 @@ object DatabaseFactory {
                 EstadosCuentaConfirmadosTable,
                 PagosEstadoTable,
                 LecturasEstadoTable,
+                AnalisisEstadosTable,
+                MovimientosAnalizadosTable,
+                ConsejosDiariosTable,
             )
         }
     }

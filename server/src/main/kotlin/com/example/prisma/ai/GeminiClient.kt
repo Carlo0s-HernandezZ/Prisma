@@ -18,6 +18,18 @@ import kotlinx.serialization.json.put
 
 class GeminiClient {
 
+    companion object {
+        /** true si el servidor tiene GEMINI_API_KEY; sin ella el análisis usa el lector local. */
+        fun isConfigured(): Boolean = AppConfig.get("GEMINI_API_KEY") != null
+
+        /** Quita los bloques ```json ... ``` que a veces envuelven la respuesta. */
+        fun cleanJson(text: String): String =
+            text.trim()
+                .removePrefix("```json").removePrefix("```JSON").removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+    }
+
     // API key desde variable de entorno o server/.env; viaja en la cabecera x-goog-api-key (no en la URL).
     private val apiKey = AppConfig.get("GEMINI_API_KEY")
         ?: error("GEMINI_API_KEY no está configurada")
@@ -30,7 +42,8 @@ class GeminiClient {
 
     suspend fun generarRespuesta(
         prompt: String,
-        formatoJson: Boolean = false
+        formatoJson: Boolean = false,
+        temperatura: Double = 0.2,
     ): String =
         withContext(Dispatchers.IO) {
 
@@ -54,7 +67,7 @@ class GeminiClient {
                 if (formatoJson) {
                     put("generationConfig", buildJsonObject {
                         put("responseMimeType", "application/json")
-                        put("temperature", 0.2)
+                        put("temperature", temperatura)
                     })
                 }
             }

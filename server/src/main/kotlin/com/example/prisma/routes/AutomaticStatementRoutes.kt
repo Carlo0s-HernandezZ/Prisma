@@ -235,14 +235,14 @@ internal fun automaticConflict(error: Throwable): Boolean =
         .filterIsInstance<SQLException>()
         .any { it.sqlState in setOf("40001", "40P01", "23505") }
 
-private val automaticReaders = Semaphore(2)
+internal val automaticReaders = Semaphore(2)
 
-private class AutomaticUploadError(
+internal class AutomaticUploadError(
     val status: HttpStatusCode,
     message: String,
 ) : Exception(message)
 
-private suspend fun ApplicationCall.automaticFiles(): List<StatementInputFile> {
+internal suspend fun ApplicationCall.automaticFiles(): List<StatementInputFile> {
     val files = mutableListOf<StatementInputFile>()
     var total = 0
 
@@ -306,7 +306,7 @@ private suspend fun ApplicationCall.automaticFiles(): List<StatementInputFile> {
     return files
 }
 
-private fun automaticFingerprint(files: List<StatementInputFile>): String {
+internal fun automaticFingerprint(files: List<StatementInputFile>): String {
     val digest = MessageDigest.getInstance("SHA-256")
 
     files.forEach {

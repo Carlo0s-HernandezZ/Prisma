@@ -6,7 +6,8 @@ import com.example.prisma.db.DatabaseFactory
 import com.example.prisma.routes.authRoutes
 import com.example.prisma.routes.biometricRoutes
 import com.example.prisma.routes.cardRoutes
-import com.example.prisma.routes.dashboardRoutes
+import com.example.prisma.routes.homeRoutes
+import com.example.prisma.routes.analysisRoutes
 import com.example.prisma.routes.incomeRoutes
 import com.example.prisma.routes.profileRoutes
 import com.example.prisma.routes.payrollRoutes
@@ -182,9 +183,7 @@ fun Application.module(
         biometricRoutes(sessions)
         cardRoutes(sessions)
         profileRoutes(sessions)
-        dashboardRoutes(sessions)
-        incomeRoutes(sessions)
-        payrollRoutes(sessions)
+        homeRoutes(sessions)
         incomeRoutes(sessions)
         incomePlanningRoutes(sessions)
         payrollRoutes(sessions)
@@ -194,5 +193,6 @@ fun Application.module(
         statementPaymentsRoutes(sessions)
         automaticStatementRoutes(sessions)
         cardPlanRoutes(sessions)
+        analysisRoutes(sessions)
     }
 }

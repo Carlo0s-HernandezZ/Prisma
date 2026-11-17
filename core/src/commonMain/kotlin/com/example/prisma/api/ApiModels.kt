@@ -118,19 +118,7 @@ data class PersonalData(
 @Serializable
 data class PersonalDataResponse(val message: String, val profileId: Int)
 
-// ---------- Dashboard ----------
-
-@Serializable
-data class PaymentAlertDto(val bankName: String, val lastFour: String, val daysLeft: Int)
-
-@Serializable
-data class DashboardResponse(
-    val userName: String,
-    val status: String,
-    val radarAxes: List<String>,
-    val alerts: List<PaymentAlertDto>,
-    val totalToPayMxn: Double,
-)
+// ---------- Inicio: ver HomeSummaryDto en AnalysisModels.kt ----------
 
 // ---------- Ingresos ----------
 

@@ -25,7 +25,11 @@ class ApplicationTest {
     fun protectedEndpointsRequireToken() = withApp {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/user/profile").status)
         assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/user/profile").status)
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/reports/latest").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/home/summary").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/analysis").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/analysis/dashboard").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/analysis/00000000-0000-0000-0000-000000000000").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/cards/00000000-0000-0000-0000-000000000000/analysis").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/incomes").status)
         assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
         assertEquals(HttpStatusCode.Unauthorized, client.put("/api/v1/incomes/00000000-0000-0000-0000-000000000000").status)
@@ -36,7 +40,7 @@ class ApplicationTest {
             }
             assertEquals(HttpStatusCode.Unauthorized, r.status, "biometric/$path sin token")
         }
-        val forged = client.get("/api/v1/reports/latest") {
+        val forged = client.get("/api/v1/home/summary") {
             header(HttpHeaders.Authorization, "Bearer prisma_access_token_123")
         }
         assertEquals(HttpStatusCode.Unauthorized, forged.status)

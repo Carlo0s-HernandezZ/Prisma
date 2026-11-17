@@ -280,12 +280,60 @@ paths:
         '204': { description: Eliminado }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /api/v1/reports/latest:
+  /api/v1/home/summary:
     get:
       tags: [Resumen]
-      summary: Resumen financiero del inicio
+      summary: Inicio - salud financiera, resumen de tarjetas e ingresos, mensajes y consejo del día
       responses:
-        '200': { description: Resumen, content: { application/json: { schema: { $ref: '#/components/schemas/DashboardResponse' } } } }
+        '200': { description: Resumen, content: { application/json: { schema: { $ref: '#/components/schemas/HomeSummary' } } } }
+
+  /api/v1/cards/{cardId}/analysis:
+    post:
+      tags: [Análisis (IA)]
+      summary: Analizar un estado de cuenta (Gemini con texto anonimizado o lector local)
+      description: >
+        Deuda total, compras a meses con y sin intereses, desglose de deudas, gastos hormiga, cargos extraños
+        y consejos de fuentes oficiales del Gobierno de México (sin recomendaciones de inversión).
+        El mismo documento no se vuelve a enviar a la IA; volver a subir el mismo mes reemplaza el análisis.
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files: { type: array, items: { type: string, format: binary } }
+      responses:
+        '200': { description: Análisis, content: { application/json: { schema: { $ref: '#/components/schemas/StatementAnalysis' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: Tarjeta no encontrada }
+        '503': { description: El documento necesita OCR y no está disponible }
+
+  /api/v1/analysis:
+    get:
+      tags: [Análisis (IA)]
+      summary: Análisis guardados (todas las tarjetas o ?tarjeta=uuid)
+      responses:
+        '200': { description: Lista, content: { application/json: { schema: { type: object } } } }
+
+  /api/v1/analysis/{id}:
+    delete:
+      tags: [Análisis (IA)]
+      summary: Borrar un análisis y sus movimientos
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Borrado }
+        '404': { description: No encontrado }
+
+  /api/v1/analysis/dashboard:
+    get:
+      tags: [Análisis (IA)]
+      summary: Gasto mes con mes, proyección, categorías y gasto por tarjeta (?tarjeta=uuid para una sola)
+      responses:
+        '200': { description: Dashboard, content: { application/json: { schema: { type: object } } } }
 
   /api/v1/ai/payroll/analyze:
     post:
@@ -461,13 +509,28 @@ components:
       properties:
         ingresos: { type: array, items: { $ref: '#/components/schemas/IncomeDto' } }
         totalMes: { type: string }
-    DashboardResponse:
+    HomeSummary:
       type: object
       properties:
         userName: { type: string }
-        status: { type: string }
-        radarAxes: { type: array, items: { type: string } }
-        totalToPayMxn: { type: number }
+        salud: { type: object, description: 'Puntaje 0..100, nivel y factores explicados' }
+        tarjetas: { type: array, items: { type: object } }
+        deudaTotal: { type: string }
+        totalAPagar: { type: string }
+        ingresosMes: { type: string }
+        ingresoMensualEstimado: { type: string }
+        mensajes: { type: array, items: { type: object } }
+    StatementAnalysis:
+      type: object
+      properties:
+        periodo: { type: string, example: '2026-10' }
+        fuente: { type: string, enum: [GEMINI, LOCAL] }
+        deudaTotal: { type: string }
+        comprasMeses: { type: array, items: { type: object } }
+        deudas: { type: array, items: { type: object } }
+        gastosHormiga: { type: object }
+        alertas: { type: array, items: { type: object } }
+        consejos: { type: array, items: { type: object, properties: { fuenteNombre: { type: string }, fuenteUrl: { type: string } } } }
     PayrollRequest:
       type: object
       required: [salarioBruto, isr, imss, salarioNeto, periodo]
