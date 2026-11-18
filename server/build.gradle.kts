@@ -41,3 +41,22 @@ dependencies {
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }
+
+// Protección: si el servidor está corriendo, installDist reemplaza sus .jar en caliente y el proceso
+// empieza a fallar en cada petición (NoClassDefFoundError → "error interno" / "algo salió mal" en las apps).
+// Detén el servidor antes de compilar, o ejecuta con -PforceInstall para omitir esta verificación.
+tasks.named("installDist") {
+    val force = providers.gradleProperty("forceInstall").isPresent
+    doFirst {
+        if (force) return@doFirst
+        val running = ProcessHandle.allProcesses().anyMatch { p ->
+            p.info().commandLine().orElse("").contains("com.example.prisma.ApplicationKt")
+        }
+        if (running) {
+            throw GradleException(
+                "El servidor de Prisma está corriendo: detenlo antes de :server:installDist " +
+                    "(reemplazar sus .jar en caliente provoca 'error interno' en todas las apps).",
+            )
+        }
+    }
+}
