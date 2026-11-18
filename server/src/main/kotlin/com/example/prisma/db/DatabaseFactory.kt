@@ -60,6 +60,8 @@ object DatabaseFactory {
                 AnalisisEstadosTable,
                 MovimientosAnalizadosTable,
                 ConsejosDiariosTable,
+                AuditoriasNominaTable,
+                RecordatoriosTable,
             )
         }
     }

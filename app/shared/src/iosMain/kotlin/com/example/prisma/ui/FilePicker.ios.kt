@@ -25,6 +25,7 @@ import platform.UIKit.UIImage
 import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIViewController
 import platform.UniformTypeIdentifiers.UTTypePDF
+import platform.UniformTypeIdentifiers.UTTypeXML
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -51,6 +52,7 @@ actual fun rememberFilePicker(
         FilePickerState(
             launchPdfPicker = { coordinator.presentPdfPicker(hostController) },
             launchImagePicker = { coordinator.presentImagePicker(hostController) },
+            launchDocumentPicker = { coordinator.presentPdfPicker(hostController, includeXml = true) },
         )
     }
 }
@@ -61,8 +63,9 @@ private class IosFilePickerCoordinator(
     private val documentDelegate = DocumentPickerDelegate { url -> readPdf(url) }
     private val photoDelegate = PhotoPickerDelegate { name, bytes -> onFileSelected(name, "image/jpeg", bytes) }
 
-    fun presentPdfPicker(host: UIViewController) {
-        val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypePDF), asCopy = true)
+    fun presentPdfPicker(host: UIViewController, includeXml: Boolean = false) {
+        val types = if (includeXml) listOf(UTTypePDF, UTTypeXML) else listOf(UTTypePDF)
+        val picker = UIDocumentPickerViewController(forOpeningContentTypes = types, asCopy = true)
         picker.delegate = documentDelegate
         picker.allowsMultipleSelection = false
         present(picker, host)

@@ -34,6 +34,8 @@ internal actual fun createPlatformHttpClient(config: HttpClientConfig<*>.() -> U
                 val trustManager = prismaTrustManager()
                 val sslContext = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustManager), null) }
                 sslSocketFactory(sslContext.socketFactory, trustManager)
+                // Encuentra el servidor por su nombre .local en cualquier red (sin IP fija).
+                dns(PrismaDns)
                 certificatePinner(
                     CertificatePinner.Builder()
                         .add(SERVER_HOST, SERVER_CERT_PIN)

@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import com.example.prisma.network.PrismaNetwork
 
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,6 +31,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // Permite encontrar el servidor por su nombre .local en cualquier red Wi-Fi.
+        PrismaNetwork.init(this)
 
         // Inicializar notificador y canal de notificaciones en Android
         CardNotificationNotifier.init(this)

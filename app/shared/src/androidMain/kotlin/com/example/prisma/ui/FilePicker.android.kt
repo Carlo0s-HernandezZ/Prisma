@@ -45,7 +45,9 @@ actual fun rememberFilePicker(
     return remember {
         FilePickerState(
             launchPdfPicker = { pdfLauncher.launch(arrayOf("application/pdf")) },
-            launchImagePicker = { imagesLauncher.launch("image/*") }
+            launchImagePicker = { imagesLauncher.launch("image/*") },
+            // El servidor identifica PDF o XML por su contenido.
+            launchDocumentPicker = { pdfLauncher.launch(arrayOf("application/pdf", "text/xml", "application/xml")) },
         )
     }
 }

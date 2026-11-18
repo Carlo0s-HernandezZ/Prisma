@@ -8,13 +8,16 @@
 #   server/certs/prisma-cert.pem      certificado público (lo usan las apps para el Certificate Pinning)
 #   server/certs/prisma-keystore.p12  llave privada + certificado para Ktor (NO se sube a git)
 #
-# El certificado incluye como nombres válidos (SAN): localhost, 127.0.0.1, 10.0.2.2 (emulador Android)
-# y la IP de red de esta computadora. Si cambias de red, vuelve a ejecutarlo y recompila las apps.
+# El certificado incluye como nombres válidos (SAN): localhost, el nombre Bonjour de esta computadora
+# (<equipo>.local), 127.0.0.1, 10.0.2.2 (emulador Android) y la IP actual. Las apps usan <equipo>.local,
+# así que al cambiar de red NO hay que regenerarlo: solo hace falta estar en la misma red que el servidor.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$DIR/../.env"
 LAN_IP="${1:-$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo 127.0.0.1)}"
+# Nombre Bonjour/mDNS de esta computadora (no cambia al cambiar de red): las apps se conectan a él.
+MDNS_NAME="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || echo prisma).local"
 
 PASSWORD="$(grep -E '^KEYSTORE_PASSWORD=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)"
 if [[ -z "$PASSWORD" ]]; then
@@ -38,7 +41,7 @@ CN = prisma-api
 basicConstraints = critical, CA:FALSE
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
-subjectAltName = DNS:localhost, IP:127.0.0.1, IP:10.0.2.2, IP:${LAN_IP}
+subjectAltName = DNS:localhost, DNS:${MDNS_NAME}, IP:127.0.0.1, IP:10.0.2.2, IP:${LAN_IP}
 CNF
 
 # Llave EC P-256 (equivalente a RSA-3072) y certificado válido por 825 días (máximo aceptado por Apple).
@@ -49,5 +52,5 @@ openssl pkcs12 -export -name prisma -inkey "$TMP/key.pem" -in "$DIR/prisma-cert.
 chmod 600 "$DIR/prisma-keystore.p12"
 
 PIN="$(openssl x509 -in "$DIR/prisma-cert.pem" -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl base64)"
-echo "Certificado generado para: localhost, 127.0.0.1, 10.0.2.2, ${LAN_IP}"
+echo "Certificado generado para: localhost, ${MDNS_NAME}, 127.0.0.1, 10.0.2.2, ${LAN_IP}"
 echo "Pin SHA-256 de la llave pública (Certificate Pinning): sha256/${PIN}"

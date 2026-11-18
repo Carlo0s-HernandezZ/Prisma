@@ -19,6 +19,8 @@ dependencies {
     implementation(libs.ktor.serverContentNegotiation)
     implementation(libs.ktor.serializationKotlinxJson)
     implementation(libs.ktor.serverCors)
+    // mDNS/DNS-SD: anuncia el servidor en la red local (_prisma._tcp) para encontrarlo sin IP fija.
+    implementation("org.jmdns:jmdns:3.5.9")
     // Seguridad (Actividad 3.2): JWT, cabeceras, redirección HTTPS, HSTS, errores sin trazas y Swagger.
     val ktorVersion = libs.versions.ktor.get()
     implementation("io.ktor:ktor-server-auth:$ktorVersion")

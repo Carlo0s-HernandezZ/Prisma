@@ -51,6 +51,10 @@ import com.example.prisma.budget.BudgetViewModel
 import com.example.prisma.analysis.AnalysisViewModel
 import com.example.prisma.analysis.KtorAnalysisRepository
 import com.example.prisma.ui.AnalysisHubScreen
+import com.example.prisma.ui.PayrollAuditScreen
+import com.example.prisma.payroll.PayrollAuditRepository
+import com.example.prisma.payroll.PayrollAuditViewModel
+import com.example.prisma.payroll.RemindersViewModel
 import com.example.prisma.ui.SpendingSummaryScreen
 import com.example.prisma.budget.KtorBudgetRepository
 import com.example.prisma.cards.CardDetailViewModel
@@ -64,9 +68,6 @@ import com.example.prisma.dashboard.DashboardViewModel
 import com.example.prisma.dashboard.KtorDashboardRepository
 import com.example.prisma.income.IncomeViewModel
 import com.example.prisma.income.KtorIncomeRepository
-import com.example.prisma.payroll.LocalPayrollDocumentPicker
-import com.example.prisma.payroll.PayrollScreen
-import com.example.prisma.payroll.PayrollSelectedFile
 import com.example.prisma.profile.KtorProfileRepository
 import com.example.prisma.profile.ProfileViewModel
 import com.example.prisma.ui.AppTheme
@@ -368,17 +369,6 @@ fun HomeScreen(
         mutableStateOf(NavDestination.Home)
     }
 
-    // Selector existente de recibos PDF/XML para auditoría de nómina.
-    val documentPicker = LocalPayrollDocumentPicker.current
-
-    var documentoSeleccionado by remember(token) {
-        mutableStateOf<PayrollSelectedFile?>(null)
-    }
-
-    var contadorDocumentos by remember(token) {
-        mutableStateOf(0L)
-    }
-
     // Se conserva el ViewModel actual del dashboard.
     val dashboardViewModel = viewModel(
         key = "dashboard-$token",
@@ -411,6 +401,18 @@ fun HomeScreen(
     val analysisState by analysisViewModel.state
         .collectAsStateWithLifecycle()
 
+    // Recordatorios del usuario: se cargan al iniciar sesión para reprogramar los avisos del teléfono.
+    val remindersViewModel = viewModel(
+        key = "reminders-$token",
+    ) {
+        RemindersViewModel(
+            PayrollAuditRepository(token),
+            KtorCardRepository(token),
+        )
+    }
+    val remindersState by remindersViewModel.state
+        .collectAsStateWithLifecycle()
+
     // Al volver a Análisis o Resumen se recargan tarjetas, análisis y dashboard.
     LaunchedEffect(selectedDestination) {
         if (
@@ -418,14 +420,15 @@ fun HomeScreen(
             selectedDestination == NavDestination.Stats
         ) {
             analysisViewModel.reload()
+            remindersViewModel.reload()
         }
     }
 
     // Permite que los efectos utilicen el callback de cierre actualizado.
     val currentOnLogout by rememberUpdatedState(onLogout)
 
-    LaunchedEffect(state.sessionExpired, analysisState.sessionExpired) {
-        if (state.sessionExpired || analysisState.sessionExpired) {
+    LaunchedEffect(state.sessionExpired, analysisState.sessionExpired, remindersState.sessionExpired) {
+        if (state.sessionExpired || analysisState.sessionExpired || remindersState.sessionExpired) {
             currentOnLogout()
         }
     }
@@ -594,25 +597,19 @@ fun HomeScreen(
                     when {
                         // Auditoría de nómina.
                         showingPayroll -> {
-                            PayrollScreen(
-                                token = token,
-                                documentoSeleccionado = documentoSeleccionado,
-                                onSeleccionarDocumento =
-                                    documentPicker?.let { picker ->
-                                        {
-                                            picker.open { nombre, contenido ->
-                                                contadorDocumentos += 1L
-
-                                                documentoSeleccionado =
-                                                    PayrollSelectedFile(
-                                                        identificador =
-                                                            contadorDocumentos,
-                                                        nombreArchivo = nombre,
-                                                        contenido = contenido,
-                                                    )
-                                            }
-                                        }
-                                    },
+                            val payrollAuditViewModel = viewModel(
+                                key = "payroll-audit-$token",
+                            ) {
+                                PayrollAuditViewModel(PayrollAuditRepository(token))
+                            }
+                            val payrollState by payrollAuditViewModel.state
+                                .collectAsStateWithLifecycle()
+                            LaunchedEffect(payrollState.sessionExpired) {
+                                if (payrollState.sessionExpired) currentOnLogout()
+                            }
+                            PayrollAuditScreen(
+                                viewModel = payrollAuditViewModel,
+                                reminders = remindersViewModel,
                                 onBack = {
                                     showingPayroll = false
                                 },
@@ -702,6 +699,7 @@ fun HomeScreen(
                      */
                     AnalysisHubScreen(
                         viewModel = analysisViewModel,
+                        reminders = remindersViewModel,
                         budgetViewModel = budgetViewModel,
                         token = token,
                         onSessionExpired = {

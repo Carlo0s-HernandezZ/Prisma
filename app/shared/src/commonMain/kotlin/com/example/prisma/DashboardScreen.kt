@@ -22,7 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Payments
@@ -248,6 +250,8 @@ private fun MessageRow(m: HomeMessageDto) {
         HomeMessageType.ALERTA -> Icons.Filled.Warning to Prisma.colors.statusCritical
         HomeMessageType.MESES -> Icons.Filled.CalendarMonth to Prisma.colors.statusHealthy
         HomeMessageType.CONSEJO -> Icons.Filled.Lightbulb to PrismaPalette.Dorado
+        HomeMessageType.NOMINA -> Icons.Filled.Description to (if (m.urgente) Prisma.colors.statusCritical else PrismaPalette.NaranjaAmbar)
+        HomeMessageType.RECORDATORIO -> Icons.Filled.Alarm to PrismaPalette.NaranjaPrisma
     }
     Row(
         Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.08f)),

@@ -18,6 +18,9 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Prisma usa Face ID para que entres a tu cuenta sin escribir tu contraseña.</string>
+	<!-- La app se conecta al servidor por la IP de la red local (iOS pide permiso de red local). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Prisma se conecta al servidor de tu red local para mostrar tus tarjetas y análisis.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Sin cargas HTTP arbitrarias: solo HTTPS. El servidor local (IP de la red) se valida con

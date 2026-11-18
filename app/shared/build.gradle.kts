@@ -1,3 +1,4 @@
+import java.io.ByteArrayOutputStream
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.net.DatagramSocket
@@ -18,14 +19,39 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-// ---------- IP del servidor (automática) ----------
+// ---------- Dirección del servidor (automática, independiente de la red) ----------
 //
-// "localhost" en un celular apunta al propio celular, no a esta computadora. Por eso, en cada
-// compilación se detecta la IP de red de la computadora y se escribe en ServerConfig.kt (generado
-// en build/, no se sube a git). Al cambiar de red basta con volver a compilar/instalar la app.
+// "localhost" en un celular apunta al propio celular, no a esta computadora. Por eso las apps se
+// conectan al nombre Bonjour/mDNS de la computadora ("MacBook-Air-de-Juan.local"), que sigue a su IP
+// en cualquier red: al cambiar de Wi-Fi NO hay que recompilar ni regenerar el certificado, solo estar
+// en la misma red que el servidor. (iPhone lo resuelve nativo; Android usa PrismaDns.)
+// Si no se puede obtener el nombre, se usa la IP actual como antes.
 //
 // Para forzar otra dirección (p. ej. si el servidor corre en otra computadora), agrega a
-// local.properties:  prisma.serverHost=192.168.1.50   o usa la variable PRISMA_SERVER_HOST.
+// local.properties:  prisma.serverHost=otra-mac.local   o usa la variable PRISMA_SERVER_HOST.
+
+/** Nombre Bonjour de esta computadora + ".local" (macOS: scutil; otros: nombre del equipo). */
+abstract class MdnsHostSource : ValueSource<String, ValueSourceParameters.None> {
+    @get:javax.inject.Inject
+    abstract val execOperations: org.gradle.process.ExecOperations
+
+    override fun obtain(): String? {
+        val fromScutil = runCatching {
+            val out = ByteArrayOutputStream()
+            val result = execOperations.exec {
+                commandLine("scutil", "--get", "LocalHostName")
+                standardOutput = out
+                errorOutput = ByteArrayOutputStream()
+                isIgnoreExitValue = true
+            }
+            out.toString().trim().takeIf { result.exitValue == 0 && it.isNotBlank() }
+        }.getOrNull()
+        val name = fromScutil
+            ?: runCatching { InetAddress.getLocalHost().hostName.substringBefore('.') }.getOrNull()
+                ?.takeIf { it.isNotBlank() && it != "localhost" }
+        return name?.let { "$it.local" }
+    }
+}
 
 /** Se vuelve a evaluar en cada build (también con configuration cache), así detecta cambios de red. */
 abstract class LanIpSource : ValueSource<String, ValueSourceParameters.None> {
@@ -55,15 +81,21 @@ val localProps = Properties().apply {
 val serverHost: Provider<String> = providers.environmentVariable("PRISMA_SERVER_HOST")
     .orElse(providers.gradleProperty("prisma.serverHost"))
     .orElse(provider { localProps.getProperty("prisma.serverHost")?.trim()?.takeIf(String::isNotEmpty) })
+    .orElse(providers.of(MdnsHostSource::class) {})
     .orElse(providers.of(LanIpSource::class) {})
+
+/** IP actual de la computadora: solo respaldo si el teléfono/emulador no logra resolver el nombre .local. */
+val serverLanHint: Provider<String> = providers.of(LanIpSource::class) {}
 
 val serverCertFile = rootProject.file("server/certs/prisma-cert.pem")
 
 val generateServerConfig = tasks.register("generateServerConfig") {
     val host = serverHost
+    val lanHint = serverLanHint
     val certFile = serverCertFile
     val outDir = layout.buildDirectory.dir("generated/serverConfig/kotlin")
     inputs.property("serverHost", host)
+    inputs.property("serverLanHint", lanHint)
     inputs.files(certFile).optional()
     outputs.dir(outDir)
     doLast {
@@ -93,8 +125,11 @@ val generateServerConfig = tasks.register("generateServerConfig") {
             |package com.example.prisma
             |
             |// ARCHIVO GENERADO por app/shared/build.gradle.kts (generateServerConfig). No editar.
-            |// IP de la computadora con el servidor, detectada al compilar.
+            |// Nombre (.local) o IP de la computadora con el servidor, detectado al compilar.
             |const val SERVER_HOST = "${host.get()}"
+            |
+            |/** IP de la computadora al compilar: respaldo si no se resuelve SERVER_HOST (p. ej. emulador). */
+            |const val SERVER_LAN_HINT = "${lanHint.get()}"
             |
             |/** Puerto HTTPS (TLS 1.2/1.3). El puerto HTTP 8080 solo redirige a HTTPS. */
             |const val SERVER_PORT = 8443

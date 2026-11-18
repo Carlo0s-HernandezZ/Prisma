@@ -38,6 +38,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- Recordatorios para subir nómina o estados de cuenta (y su reprogramación al reiniciar el teléfono). -->
+        <receiver
+            android:name="com.example.prisma.notifications.PrismaReminderReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".notifications.CardReminderReceiver"
             android:enabled="true"

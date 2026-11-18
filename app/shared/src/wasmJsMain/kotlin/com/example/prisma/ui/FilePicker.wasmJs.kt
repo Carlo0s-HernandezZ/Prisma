@@ -57,6 +57,11 @@ actual fun rememberFilePicker(
                     currentOnFileSelected(name, mime.ifBlank { "image/jpeg" }, Base64.decode(base64))
                 }
             },
+            launchDocumentPicker = {
+                openBrowserFileDialog("application/pdf,.pdf,text/xml,application/xml,.xml", false) { name, mime, base64 ->
+                    currentOnFileSelected(name, mime.ifBlank { "application/octet-stream" }, Base64.decode(base64))
+                }
+            },
         )
     }
 }

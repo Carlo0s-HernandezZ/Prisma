@@ -26,7 +26,9 @@ internal val prismaHttpClient: HttpClient by lazy {
     createPlatformHttpClient {
         expectSuccess = false
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
+            // coerceInputValues: un valor desconocido (p. ej. un tipo nuevo agregado en el servidor) usa el
+            // valor por defecto del campo en lugar de hacer fallar toda la respuesta.
+            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
         }
         install(HttpTimeout) {
             connectTimeoutMillis = 10_000

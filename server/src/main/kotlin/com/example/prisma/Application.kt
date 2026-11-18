@@ -7,7 +7,9 @@ import com.example.prisma.routes.authRoutes
 import com.example.prisma.routes.biometricRoutes
 import com.example.prisma.routes.cardRoutes
 import com.example.prisma.routes.homeRoutes
+import com.example.prisma.network.LocalNetworkAdvertiser
 import com.example.prisma.routes.analysisRoutes
+import com.example.prisma.routes.payrollAuditRoutes
 import com.example.prisma.routes.incomeRoutes
 import com.example.prisma.routes.profileRoutes
 import com.example.prisma.routes.payrollRoutes
@@ -47,8 +49,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import java.security.KeyStore
 
 private val HTTP_PORT = AppConfig.int("HTTP_PORT", 8080)
@@ -65,6 +65,9 @@ fun main() {
     val keyStore = KeyStore.getInstance("PKCS12").apply {
         keystoreFile.inputStream().use { load(it, keystorePassword.toCharArray()) }
     }
+
+    // Se anuncia por mDNS para que los teléfonos lo encuentren en cualquier red, sin IP fija.
+    LocalNetworkAdvertiser.start(HTTPS_PORT)
 
     embeddedServer(
         Netty,
@@ -93,23 +96,23 @@ fun main() {
 
 
 /**
- * Orígenes web permitidos por CORS (las apps de Android/iOS no usan CORS).
- * Por defecto: localhost y todas las IPs de red local de esta computadora, en los puertos del
- * servidor de desarrollo web (3000 JS, 3001 Wasm) y del propio servidor. Así la versión web
- * funciona desde cualquier dispositivo de la misma red aunque cambie la IP.
+ * Orígenes web permitidos por CORS (las apps de Android/iOS no usan CORS). Por defecto:
+ * http(s)://<host>:<puerto> con host = localhost, un nombre .local (Bonjour/mDNS) o una IP privada
+ * (10.x, 172.16-31.x, 192.168.x), en los puertos de la app web (3000 JS, 3001 Wasm) y del servidor.
+ * No depende de la red actual: la versión web funciona aunque cambie la IP, sin reiniciar.
  * Configurable con CORS_ALLOWED_HOSTS="host:puerto,otro:puerto" o "*" para permitir todos (solo desarrollo).
  */
-private fun defaultCorsHosts(serverPort: Int): List<String> {
-    val lanIps = runCatching {
-        NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .filterIsInstance<Inet4Address>()
-            .map { it.hostAddress }
-    }.getOrDefault(emptyList())
-    val hosts = listOf("localhost", "127.0.0.1") + lanIps
-    val ports = listOf(3000, 3001, serverPort).distinct()
-    return hosts.flatMap { host -> ports.map { "$host:$it" } }
+internal fun isLocalWebOrigin(origin: String, ports: Set<Int>): Boolean {
+    val uri = runCatching { java.net.URI(origin) }.getOrNull() ?: return false
+    if (uri.scheme !in setOf("http", "https")) return false
+    val host = uri.host?.lowercase() ?: return false
+    if (uri.port !in ports) return false
+    if (host == "localhost" || host == "127.0.0.1" || host.endsWith(".local")) return true
+    val parts = host.split('.').mapNotNull(String::toIntOrNull)
+    if (parts.size != 4 || host.count { it == '.' } != 3) return false
+    return parts[0] == 10 ||
+        (parts[0] == 172 && parts[1] in 16..31) ||
+        (parts[0] == 192 && parts[1] == 168)
 }
 
 fun Application.module(
@@ -156,8 +159,12 @@ fun Application.module(
             ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
         if (configured == listOf("*")) {
             anyHost()
+        } else if (configured != null) {
+            configured.forEach { allowHost(it, schemes = listOf("http", "https")) }
         } else {
-            (configured ?: defaultCorsHosts(System.getenv("PORT")?.toIntOrNull() ?: 8080)).forEach { allowHost(it, schemes = listOf("http", "https")) }
+            // Funciona en cualquier red sin reiniciar: la app web de esta computadora o de la red local.
+            val ports = setOf(3000, 3001, System.getenv("PORT")?.toIntOrNull() ?: 8080)
+            allowOrigins { origin -> isLocalWebOrigin(origin, ports) }
         }
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
@@ -194,5 +201,6 @@ fun Application.module(
         automaticStatementRoutes(sessions)
         cardPlanRoutes(sessions)
         analysisRoutes(sessions)
+        payrollAuditRoutes(sessions)
     }
 }
